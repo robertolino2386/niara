@@ -97,6 +97,121 @@
       display: block;
     }
 
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-encontrado {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status-nao-encontrado {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .status-selecao {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-selecionado {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .conciliacao-acoes {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-small {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-blue {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .btn-gray {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .candidate-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .candidate-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .candidate-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 15px;
+      background: #f9fafb;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .candidate-card-title {
+      font-weight: 700;
+    }
+
+    .candidate-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+    }
+
+    .candidate-field {
+      padding: 11px 14px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      min-width: 0;
+    }
+
+    .candidate-field b {
+      display: block;
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .candidate-field span {
+      display: block;
+      word-break: break-word;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .candidate-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .nav-btn {
       width: 100%;
       border: 0;
@@ -592,6 +707,20 @@
 
     <button
       class="nav-btn"
+      id="btn-base-sql"
+      onclick="trocarPagina('base-sql')">
+      ⇩ Base SQL
+    </button>
+
+    <button
+      class="nav-btn"
+      id="btn-conciliacao"
+      onclick="trocarPagina('conciliacao')">
+      ✓ Conciliação
+    </button>
+
+    <button
+      class="nav-btn"
       id="btn-listar"
       onclick="trocarPagina('listar')">
       ☰ Listar transações
@@ -705,6 +834,113 @@
     </section>
 
 
+
+    <section id="page-base-sql" class="page">
+
+      <h1>Base SQL</h1>
+
+      <p class="subtitle">
+        Exporte o resultado da sua query do SQL Server e envie o arquivo aqui.
+        A base anterior será substituída pela nova importação.
+      </p>
+
+      <div class="card">
+
+        <form
+          id="baseSqlForm"
+          onsubmit="enviarBaseSql(this); return false;">
+
+          <div class="upload-area">
+
+            <div style="font-size:34px">🗄️</div>
+
+            <h3>Selecione a base exportada do SQL</h3>
+
+            <p class="subtitle" style="margin-bottom:8px">
+              Aceita XLSX ou CSV. O arquivo precisa possuir a coluna <b>CONFIRMACAO</b>.
+            </p>
+
+            <input
+              type="file"
+              id="arquivoBaseSql"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              required>
+
+            <button
+              class="primary"
+              id="btnBaseSql"
+              type="submit">
+              Importar Base SQL
+            </button>
+
+          </div>
+
+        </form>
+
+        <div
+          id="baseSqlStatus"
+          class="status">
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <section id="page-conciliacao" class="page">
+
+      <h1>Conciliação</h1>
+
+      <p class="subtitle">
+        Cruzamento entre <b>Localizador</b> da base importada e <b>CONFIRMACAO</b> da Base SQL.
+      </p>
+
+      <div class="toolbar">
+
+        <input
+          id="buscaConciliacao"
+          class="search"
+          type="search"
+          placeholder="Buscar por localizador, hotel ou status..."
+          onkeydown="if(event.key==='Enter') carregarConciliacao();">
+
+        <select
+          id="filtroStatusConciliacao"
+          class="search"
+          style="flex:0 0 210px"
+          onchange="carregarConciliacao()">
+          <option value="">Todos os status</option>
+          <option value="Encontrado">Encontrado</option>
+          <option value="Não encontrado">Não encontrado</option>
+          <option value="Seleção necessária">Seleção necessária</option>
+          <option value="Selecionado">Selecionado</option>
+        </select>
+
+        <button
+          class="primary"
+          onclick="carregarConciliacao()">
+          Atualizar
+        </button>
+
+        <span
+          id="contadorConciliacao"
+          class="badge">
+          0 registros
+        </span>
+
+      </div>
+
+      <div class="table-wrap">
+        <div
+          id="tabelaConciliacao"
+          class="loading">
+          Clique em “Atualizar” para carregar.
+        </div>
+      </div>
+
+    </section>
+
+
     <section id="page-dashboard" class="page">
 
       <h1>Dashboard</h1>
@@ -812,6 +1048,14 @@
 
     if (nome === 'listar') {
       carregarTransacoes();
+    }
+
+    if (nome === 'base-sql') {
+      // A tela de upload não precisa carregar dados automaticamente.
+    }
+
+    if (nome === 'conciliacao') {
+      carregarConciliacao();
     }
 
     if (nome === 'dashboard') {
@@ -1735,6 +1979,722 @@
 
 
   /****************************************************
+   * IMPORTAÇÃO DA BASE SQL
+   ****************************************************/
+
+  async function enviarBaseSql(form) {
+
+    const file =
+      document.getElementById('arquivoBaseSql').files[0];
+
+    const btn =
+      document.getElementById('btnBaseSql');
+
+    const status =
+      document.getElementById('baseSqlStatus');
+
+    if (!file) {
+      return;
+    }
+
+    const nome =
+      file.name.toLowerCase();
+
+    if (
+      !nome.endsWith('.xlsx') &&
+      !nome.endsWith('.csv')
+    ) {
+      mostrarStatusBaseSql(
+        'error',
+        'Envie um arquivo XLSX ou CSV.'
+      );
+      return;
+    }
+
+    try {
+
+      btn.disabled = true;
+      btn.textContent = 'Importando...';
+
+      status.className = 'status';
+      status.style.display = 'block';
+      status.textContent =
+        'Lendo e enviando a Base SQL...';
+
+      const base64 =
+        await arquivoParaBase64(file);
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type':
+                'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action: 'importarBaseSql',
+              nomeArquivo: file.name,
+              base64: base64
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let res;
+
+      try {
+        res = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error(
+          'O Apps Script retornou uma resposta inválida.'
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível importar a Base SQL.'
+        );
+      }
+
+      form.reset();
+
+      mostrarStatusBaseSql(
+        'ok',
+        'Base SQL importada com sucesso!\n' +
+        'Arquivo: ' + res.arquivo + '\n' +
+        'Registros: ' + res.registros + '\n' +
+        'Colunas: ' + res.colunas
+      );
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      mostrarStatusBaseSql(
+        'error',
+        erro && erro.message
+          ? erro.message
+          : String(erro)
+      );
+
+    } finally {
+
+      btn.disabled = false;
+      btn.textContent = 'Importar Base SQL';
+    }
+  }
+
+
+  function mostrarStatusBaseSql(tipo, mensagem) {
+
+    const status =
+      document.getElementById('baseSqlStatus');
+
+    status.className =
+      'status ' + tipo;
+
+    status.style.display =
+      'block';
+
+    status.textContent =
+      mensagem;
+  }
+
+
+  /****************************************************
+   * CONCILIAÇÃO
+   ****************************************************/
+
+  let conciliacaoAtual = [];
+
+
+  async function carregarConciliacao() {
+
+    const container =
+      document.getElementById(
+        'tabelaConciliacao'
+      );
+
+    container.className = 'loading';
+    container.textContent =
+      'Cruzando Localizador com CONFIRMACAO...';
+
+    const termo =
+      document.getElementById(
+        'buscaConciliacao'
+      ).value || '';
+
+    const status =
+      document.getElementById(
+        'filtroStatusConciliacao'
+      ).value || '';
+
+    try {
+
+      const url =
+        API_URL +
+        '?action=conciliacao' +
+        '&termo=' +
+        encodeURIComponent(termo) +
+        '&status=' +
+        encodeURIComponent(status);
+
+      const response =
+        await fetch(
+          url,
+          {
+            method: 'GET',
+            redirect: 'follow'
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let data;
+
+      try {
+        data = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error(
+          'O Apps Script retornou uma resposta inválida.'
+        );
+      }
+
+      if (!data.ok) {
+        throw new Error(
+          data.mensagem ||
+          'Não foi possível carregar a conciliação.'
+        );
+      }
+
+      conciliacaoAtual =
+        data.rows || [];
+
+      renderConciliacao(data);
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      container.className =
+        'loading';
+
+      container.textContent =
+        'Erro: ' +
+        (
+          erro && erro.message
+            ? erro.message
+            : String(erro)
+        );
+    }
+  }
+
+
+  function renderConciliacao(data) {
+
+    document
+      .getElementById('contadorConciliacao')
+      .textContent =
+        data.total +
+        ' registro(s)';
+
+    const container =
+      document.getElementById(
+        'tabelaConciliacao'
+      );
+
+    container.className = '';
+
+    if (!data.rows || !data.rows.length) {
+
+      container.innerHTML =
+        '<div class="loading">' +
+        'Nenhum registro encontrado.' +
+        '</div>';
+
+      return;
+    }
+
+    let html =
+      '<table>' +
+      '<thead>' +
+      '<tr>' +
+      '<th>Ações</th>' +
+      '<th>Localizador</th>' +
+      '<th>Hotel</th>' +
+      '<th>Data da reserva</th>' +
+      '<th>Status</th>' +
+      '<th>Ocorrências SQL</th>' +
+      '</tr>' +
+      '</thead>' +
+      '<tbody>';
+
+    data.rows.forEach(
+      (item, index) => {
+
+        html += '<tr>';
+
+        html +=
+          '<td>' +
+          '<div class="conciliacao-acoes">';
+
+        if (item.quantidadeSql > 0) {
+
+          const label =
+            item.quantidadeSql > 1
+              ? 'Selecionar'
+              : (
+                  item.status === 'Selecionado'
+                    ? 'Ver'
+                    : 'Usar'
+                );
+
+          html +=
+            '<button ' +
+            'class="btn-small btn-blue" ' +
+            'type="button" ' +
+            'onclick="abrirCandidatos(' + index + ')">' +
+            escapeHtml(label) +
+            '</button>';
+        }
+
+        html +=
+          '</div>' +
+          '</td>';
+
+        html +=
+          '<td>' +
+          escapeHtml(item.localizador) +
+          '</td>';
+
+        html +=
+          '<td>' +
+          escapeHtml(item.hotel) +
+          '</td>';
+
+        html +=
+          '<td>' +
+          escapeHtml(
+            formatarDataBR(
+              item.dataReserva
+            )
+          ) +
+          '</td>';
+
+        html +=
+          '<td>' +
+          renderStatusConciliacao(
+            item.status
+          ) +
+          '</td>';
+
+        html +=
+          '<td>' +
+          escapeHtml(
+            item.quantidadeSql
+          ) +
+          '</td>';
+
+        html += '</tr>';
+      }
+    );
+
+    html +=
+      '</tbody>' +
+      '</table>';
+
+    container.innerHTML =
+      html;
+  }
+
+
+  function renderStatusConciliacao(status) {
+
+    let classe =
+      'status-encontrado';
+
+    if (
+      status === 'Não encontrado'
+    ) {
+      classe =
+        'status-nao-encontrado';
+    }
+
+    if (
+      status === 'Seleção necessária'
+    ) {
+      classe =
+        'status-selecao';
+    }
+
+    if (
+      status === 'Selecionado'
+    ) {
+      classe =
+        'status-selecionado';
+    }
+
+    return (
+      '<span class="status-badge ' +
+      classe +
+      '">' +
+      escapeHtml(status) +
+      '</span>'
+    );
+  }
+
+
+  async function abrirCandidatos(index) {
+
+    const item =
+      conciliacaoAtual[index];
+
+    if (!item) {
+      return;
+    }
+
+    const modal =
+      document.getElementById(
+        'modalCandidatos'
+      );
+
+    const lista =
+      document.getElementById(
+        'listaCandidatos'
+      );
+
+    const resumo =
+      document.getElementById(
+        'resumoConciliacaoOrigem'
+      );
+
+    const status =
+      document.getElementById(
+        'candidatosStatus'
+      );
+
+    resumo.innerHTML =
+      '<div class="card" style="padding:14px">' +
+      '<b>Base importada</b><br>' +
+      'Localizador: ' +
+      escapeHtml(item.localizador) +
+      (item.hotel
+        ? '<br>Hotel: ' +
+          escapeHtml(item.hotel)
+        : '') +
+      '</div>';
+
+    lista.innerHTML =
+      '<div class="loading">' +
+      'Carregando registros da Base SQL...' +
+      '</div>';
+
+    status.className =
+      'modal-status';
+
+    status.textContent = '';
+
+    modal.classList.add('active');
+
+    try {
+
+      const url =
+        API_URL +
+        '?action=candidatos' +
+        '&localizador=' +
+        encodeURIComponent(
+          item.localizador
+        );
+
+      const response =
+        await fetch(
+          url,
+          {
+            method: 'GET',
+            redirect: 'follow'
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      const data =
+        JSON.parse(texto);
+
+      if (!data.ok) {
+        throw new Error(
+          data.mensagem ||
+          'Não foi possível carregar os candidatos.'
+        );
+      }
+
+      renderCandidatos(
+        item,
+        data
+      );
+
+    } catch (erro) {
+
+      lista.innerHTML = '';
+
+      status.className =
+        'modal-status error';
+
+      status.textContent =
+        erro && erro.message
+          ? erro.message
+          : String(erro);
+    }
+  }
+
+
+  function renderCandidatos(item, data) {
+
+    const lista =
+      document.getElementById(
+        'listaCandidatos'
+      );
+
+    if (
+      !data.candidatos ||
+      !data.candidatos.length
+    ) {
+
+      lista.innerHTML =
+        '<div class="loading">' +
+        'Nenhum registro encontrado.' +
+        '</div>';
+
+      return;
+    }
+
+    const camposPreferenciais = [
+      'CONFIRMACAO',
+      'BB_RLOC',
+      'HOTEL',
+      'PASSAGEIRONAOCAD',
+      'RECEBIMENTO',
+      'AUTORIZACAOCARTAO',
+      'INFOS',
+      'BB_HOTEL_ENTRADA',
+      'BB_HOTEL_SAIDA',
+      'TARIFA',
+      'TAXA',
+      'MARKUP',
+      'EXTRAS'
+    ];
+
+    let html = '';
+
+    data.candidatos.forEach(
+      (cand, idx) => {
+
+        const selecionado =
+          Number(item.linhaBaseSqlSelecionada) ===
+          Number(cand.linha);
+
+        html +=
+          '<div class="candidate-card">';
+
+        html +=
+          '<div class="candidate-card-header">' +
+          '<div class="candidate-card-title">' +
+          'Opção ' + (idx + 1) +
+          (selecionado
+            ? ' • Selecionada'
+            : '') +
+          '</div>';
+
+        html +=
+          '<button ' +
+          'class="btn-small btn-blue" ' +
+          'type="button" ' +
+          'onclick="selecionarCandidato(' +
+          JSON.stringify(item.localizador) +
+          ',' +
+          cand.linha +
+          ')">' +
+          (selecionado
+            ? 'Selecionado ✓'
+            : 'Selecionar') +
+          '</button>' +
+          '</div>';
+
+        html +=
+          '<div class="candidate-grid">';
+
+        camposPreferenciais.forEach(
+          campo => {
+
+            if (
+              cand.dados[campo] === undefined
+            ) {
+              return;
+            }
+
+            let valor =
+              cand.dados[campo];
+
+            if (
+              [
+                'BB_HOTEL_ENTRADA',
+                'BB_HOTEL_SAIDA'
+              ].includes(campo)
+            ) {
+              valor =
+                formatarDataBR(valor);
+            }
+
+            if (
+              [
+                'TARIFA',
+                'TAXA',
+                'MARKUP',
+                'EXTRAS'
+              ].includes(campo)
+            ) {
+              valor =
+                formatarMoedaBR(valor);
+            }
+
+            html +=
+              '<div class="candidate-field">' +
+              '<b>' +
+              escapeHtml(campo) +
+              '</b>' +
+              '<span>' +
+              escapeHtml(valor) +
+              '</span>' +
+              '</div>';
+          }
+        );
+
+        html +=
+          '</div>' +
+          '</div>';
+      }
+    );
+
+    lista.innerHTML =
+      html;
+  }
+
+
+  async function selecionarCandidato(
+    localizador,
+    linhaBaseSql
+  ) {
+
+    const status =
+      document.getElementById(
+        'candidatosStatus'
+      );
+
+    try {
+
+      status.className =
+        'modal-status';
+
+      status.style.display =
+        'block';
+
+      status.textContent =
+        'Salvando seleção...';
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type':
+                'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action:
+                'selecionarCandidato',
+              localizador:
+                localizador,
+              linhaBaseSql:
+                linhaBaseSql
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      const res =
+        JSON.parse(texto);
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível salvar a seleção.'
+        );
+      }
+
+      status.className =
+        'modal-status ok';
+
+      status.textContent =
+        'Registro selecionado com sucesso.';
+
+      await carregarConciliacao();
+
+      setTimeout(() => {
+        fecharModalCandidatos();
+      }, 650);
+
+    } catch (erro) {
+
+      status.className =
+        'modal-status error';
+
+      status.textContent =
+        erro && erro.message
+          ? erro.message
+          : String(erro);
+    }
+  }
+
+
+  function fecharModalCandidatos() {
+
+    document
+      .getElementById(
+        'modalCandidatos'
+      )
+      .classList.remove(
+        'active'
+      );
+  }
+
+
+  function fecharModalCandidatosAoFundo(
+    event
+  ) {
+
+    if (
+      event.target.id ===
+      'modalCandidatos'
+    ) {
+      fecharModalCandidatos();
+    }
+  }
+
+
+  /****************************************************
    * DASHBOARD - TRANSAÇÕES POR MÊS
    ****************************************************/
 
@@ -2266,6 +3226,26 @@
     <div class="modal-footer">
       <button class="secondary" type="button" onclick="fecharModalExcluir()">Cancelar</button>
       <button class="danger-btn" id="btnConfirmarExclusao" type="button" onclick="confirmarExclusao()">✕ Excluir</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="modalCandidatos" class="modal-backdrop" onclick="fecharModalCandidatosAoFundo(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Selecionar registro da Base SQL</h2>
+      <button class="modal-close" type="button" onclick="fecharModalCandidatos()">×</button>
+    </div>
+
+    <div class="modal-body">
+      <div id="resumoConciliacaoOrigem" style="margin-bottom:16px"></div>
+      <div id="listaCandidatos" class="candidate-list"></div>
+      <div id="candidatosStatus" class="modal-status"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="secondary" type="button" onclick="fecharModalCandidatos()">Fechar</button>
     </div>
   </div>
 </div>
