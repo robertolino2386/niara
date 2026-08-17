@@ -841,7 +841,7 @@
 
       <p class="subtitle">
         Exporte o resultado da sua query do SQL Server e envie o arquivo aqui.
-        A base anterior será substituída pela nova importação.
+        A Base SQL é acumulativa: registros existentes são atualizados e novos registros são acrescentados.
       </p>
 
       <div class="card">
@@ -2067,10 +2067,13 @@
 
       mostrarStatusBaseSql(
         'ok',
-        'Base SQL importada com sucesso!\n' +
+        'Base SQL processada com sucesso!\n' +
         'Arquivo: ' + res.arquivo + '\n' +
-        'Registros: ' + res.registros + '\n' +
-        'Colunas: ' + res.colunas
+        'Registros lidos: ' + res.registrosLidos + '\n' +
+        'Linhas atualizadas: ' + res.atualizados + '\n' +
+        'Novas linhas adicionadas: ' + res.adicionados + '\n' +
+        'Linhas ignoradas: ' + res.ignorados + '\n' +
+        'Total atual na Base SQL: ' + res.totalBaseSql
       );
 
     } catch (erro) {
