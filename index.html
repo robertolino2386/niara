@@ -266,6 +266,51 @@
       text-align: right;
     }
 
+    .acoes-linha {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 112px;
+    }
+
+    .acao-btn {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      transition: background .15s ease, transform .15s ease;
+    }
+
+    .acao-btn:hover {
+      background: #f3f4f6;
+      transform: translateY(-1px);
+    }
+
+    .acao-editar {
+      color: #2563eb;
+    }
+
+    .acao-excluir {
+      color: #dc2626;
+    }
+
+    .acao-salvar {
+      color: #16a34a;
+    }
+
+    .acao-btn:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     @media (max-width: 760px) {
       .sidebar {
         width: 76px;
@@ -952,15 +997,18 @@
       }
     );
 
+    html += '<th>Ações</th>';
+
     html +=
       '</tr>' +
       '</thead>' +
       '<tbody>';
 
     data.rows.forEach(
-      row => {
+      (row, rowIndex) => {
 
-        html += '<tr>';
+        html +=
+          '<tr id="transacao-row-' + rowIndex + '">';
 
         colunasEncontradas.forEach(
           coluna => {
@@ -997,6 +1045,15 @@
           }
         );
 
+        html +=
+          '<td>' +
+            '<div class="acoes-linha">' +
+              '<button class="acao-btn acao-editar" type="button" title="Editar" aria-label="Editar" onclick="editarTransacao(' + rowIndex + ')">✎</button>' +
+              '<button class="acao-btn acao-excluir" type="button" title="Excluir" aria-label="Excluir" onclick="excluirTransacao(' + rowIndex + ')">✕</button>' +
+              '<button class="acao-btn acao-salvar" type="button" title="Salvar" aria-label="Salvar" onclick="salvarTransacao(' + rowIndex + ')">✓</button>' +
+            '</div>' +
+          '</td>';
+
         html += '</tr>';
       }
     );
@@ -1007,6 +1064,27 @@
 
     container.innerHTML =
       html;
+  }
+
+
+  /****************************************************
+   * AÇÕES DA TABELA
+   *
+   * Os ícones já estão disponíveis na interface.
+   * A persistência no Google Sheets será ligada
+   * aos endpoints de editar/excluir no Apps Script.
+   ****************************************************/
+
+  function editarTransacao(rowIndex) {
+    console.log('Editar transação:', rowIndex);
+  }
+
+  function excluirTransacao(rowIndex) {
+    console.log('Excluir transação:', rowIndex);
+  }
+
+  function salvarTransacao(rowIndex) {
+    console.log('Salvar transação:', rowIndex);
   }
 
 
