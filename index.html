@@ -181,7 +181,7 @@
 
     table {
       border-collapse: collapse;
-      min-width: 1900px;
+      min-width: 2200px;
       width: 100%;
       font-size: 13px;
     }
@@ -749,17 +749,82 @@
       return;
     }
 
+    /*
+     * Apenas estas colunas serão exibidas na tela,
+     * na ordem definida abaixo.
+     * Os demais campos continuam salvos no Google Sheets.
+     */
+    const COLUNAS_VISIVEIS = [
+      'ID Reserva',
+      'Localizador',
+      'ID no fornecedor',
+      'Hotel',
+      'Cidade',
+      'Data de check-in',
+      'Data de check-out',
+      'Data da reserva',
+      'Situação',
+      'Hotel Net (sem taxas)',
+      'Impostos e Taxas',
+      'Markup',
+      'Pagto ao fornecedor',
+      'Cartão Fornecedor',
+      'Pax',
+      'Comissão a receber (%)',
+      'Comissão a receber',
+      'Tipo de pagamento',
+      'CC Cod.Aut. (recebido)'
+    ];
+
+    function normalizarCabecalho(valor) {
+      return String(valor == null ? '' : valor)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    const mapaHeaders = new Map();
+
+    data.headers.forEach((header, index) => {
+      mapaHeaders.set(
+        normalizarCabecalho(header),
+        index
+      );
+    });
+
+    const colunasEncontradas = COLUNAS_VISIVEIS
+      .map(nome => ({
+        nome,
+        index: mapaHeaders.get(
+          normalizarCabecalho(nome)
+        )
+      }))
+      .filter(coluna =>
+        coluna.index !== undefined
+      );
+
+    if (!colunasEncontradas.length) {
+
+      container.innerHTML =
+        '<div class="loading">' +
+        'Nenhuma das colunas configuradas foi encontrada na planilha.' +
+        '</div>';
+
+      return;
+    }
+
     let html =
       '<table>' +
       '<thead>' +
       '<tr>';
 
-    data.headers.forEach(
-      h => {
+    colunasEncontradas.forEach(
+      coluna => {
 
         html +=
           '<th>' +
-          escapeHtml(h) +
+          escapeHtml(coluna.nome) +
           '</th>';
       }
     );
@@ -774,12 +839,14 @@
 
         html += '<tr>';
 
-        row.forEach(
-          cell => {
+        colunasEncontradas.forEach(
+          coluna => {
 
             html +=
               '<td>' +
-              escapeHtml(cell) +
+              escapeHtml(
+                row[coluna.index]
+              ) +
               '</td>';
           }
         );
