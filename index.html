@@ -220,6 +220,52 @@
       text-align: center;
     }
 
+    .dashboard-filtros {
+      display: flex;
+      gap: 12px;
+      align-items: end;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .filtro-grupo {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 180px;
+    }
+
+    .filtro-grupo label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4b5563;
+    }
+
+    .filtro-select {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--text);
+      min-height: 40px;
+    }
+
+    .dashboard-table {
+      min-width: 520px;
+      width: 100%;
+      font-size: 14px;
+    }
+
+    .dashboard-table th,
+    .dashboard-table td {
+      padding: 13px 14px;
+    }
+
+    .dashboard-table td:last-child,
+    .dashboard-table th:last-child {
+      text-align: right;
+    }
+
     @media (max-width: 760px) {
       .sidebar {
         width: 76px;
@@ -272,6 +318,13 @@
       id="btn-listar"
       onclick="trocarPagina('listar')">
       ☰ Listar transações
+    </button>
+
+    <button
+      class="nav-btn"
+      id="btn-dashboard"
+      onclick="trocarPagina('dashboard')">
+      ▦ Dashboard
     </button>
   </aside>
 
@@ -370,6 +423,72 @@
 
     </section>
 
+
+    <section id="page-dashboard" class="page">
+
+      <h1>Dashboard</h1>
+
+      <p class="subtitle">
+        Quantidade de transações por mês, considerando a coluna <b>Data da reserva</b>.
+      </p>
+
+      <div class="card">
+
+        <div class="dashboard-filtros">
+
+          <div class="filtro-grupo">
+            <label for="dashboardMes">Mês</label>
+            <select
+              id="dashboardMes"
+              class="filtro-select"
+              onchange="renderDashboard()">
+              <option value="">Todos os meses</option>
+              <option value="1">Janeiro</option>
+              <option value="2">Fevereiro</option>
+              <option value="3">Março</option>
+              <option value="4">Abril</option>
+              <option value="5">Maio</option>
+              <option value="6">Junho</option>
+              <option value="7">Julho</option>
+              <option value="8">Agosto</option>
+              <option value="9">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+          </div>
+
+          <div class="filtro-grupo">
+            <label for="dashboardAno">Ano</label>
+            <select
+              id="dashboardAno"
+              class="filtro-select"
+              onchange="renderDashboard()">
+              <option value="">Carregando...</option>
+            </select>
+          </div>
+
+          <button
+            class="primary"
+            type="button"
+            onclick="carregarDashboard()">
+            Atualizar
+          </button>
+
+        </div>
+
+        <div class="table-wrap" style="max-height: none;">
+          <div
+            id="dashboardTabela"
+            class="loading">
+            Carregando dashboard...
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
   </main>
 </div>
 
@@ -412,6 +531,10 @@
 
     if (nome === 'listar') {
       carregarTransacoes();
+    }
+
+    if (nome === 'dashboard') {
+      carregarDashboard();
     }
   }
 
@@ -872,6 +995,383 @@
 
     container.innerHTML =
       html;
+  }
+
+
+  /****************************************************
+   * DASHBOARD - TRANSAÇÕES POR MÊS
+   ****************************************************/
+
+  let dashboardDados = null;
+
+
+  async function carregarDashboard() {
+
+    const container =
+      document.getElementById('dashboardTabela');
+
+    const selectAno =
+      document.getElementById('dashboardAno');
+
+    container.className = 'loading';
+    container.textContent = 'Carregando dashboard...';
+
+    try {
+
+      const response =
+        await fetch(
+          API_URL + '?action=listar&termo=',
+          {
+            method: 'GET',
+            redirect: 'follow'
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let data;
+
+      try {
+        data = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error(
+          'O Apps Script retornou uma resposta inválida.'
+        );
+      }
+
+      if (!data.ok) {
+        throw new Error(
+          data.mensagem ||
+          'Erro ao carregar dados do dashboard.'
+        );
+      }
+
+      dashboardDados = data;
+
+      const indiceDataReserva =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Data da reserva'
+        );
+
+      if (indiceDataReserva === -1) {
+
+        selectAno.innerHTML =
+          '<option value="">Sem anos disponíveis</option>';
+
+        container.className = 'loading';
+        container.textContent =
+          'A coluna "Data da reserva" não foi encontrada.';
+
+        return;
+      }
+
+      const anos = new Set();
+
+      data.rows.forEach(row => {
+
+        const partes =
+          extrairPartesData(
+            row[indiceDataReserva]
+          );
+
+        if (partes) {
+          anos.add(partes.ano);
+        }
+      });
+
+      const anosOrdenados =
+        Array.from(anos)
+          .sort((a, b) => b - a);
+
+      const anoSelecionadoAnterior =
+        selectAno.value;
+
+      selectAno.innerHTML = '';
+
+      if (!anosOrdenados.length) {
+
+        selectAno.innerHTML =
+          '<option value="">Sem anos disponíveis</option>';
+
+        container.className = 'loading';
+        container.textContent =
+          'Nenhuma Data da reserva válida foi encontrada.';
+
+        return;
+      }
+
+      anosOrdenados.forEach(ano => {
+
+        const option =
+          document.createElement('option');
+
+        option.value = String(ano);
+        option.textContent = String(ano);
+
+        selectAno.appendChild(option);
+      });
+
+      if (
+        anoSelecionadoAnterior &&
+        anosOrdenados.includes(
+          Number(anoSelecionadoAnterior)
+        )
+      ) {
+        selectAno.value =
+          anoSelecionadoAnterior;
+      } else {
+        selectAno.value =
+          String(anosOrdenados[0]);
+      }
+
+      renderDashboard();
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      container.className = 'loading';
+
+      container.textContent =
+        'Erro: ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(erro)
+        );
+    }
+  }
+
+
+  function renderDashboard() {
+
+    if (!dashboardDados) {
+      return;
+    }
+
+    const container =
+      document.getElementById('dashboardTabela');
+
+    const mesSelecionado =
+      Number(
+        document.getElementById(
+          'dashboardMes'
+        ).value || 0
+      );
+
+    const anoSelecionado =
+      Number(
+        document.getElementById(
+          'dashboardAno'
+        ).value || 0
+      );
+
+    const indiceDataReserva =
+      localizarIndiceCabecalho(
+        dashboardDados.headers,
+        'Data da reserva'
+      );
+
+    if (indiceDataReserva === -1) {
+
+      container.className = 'loading';
+      container.textContent =
+        'A coluna "Data da reserva" não foi encontrada.';
+
+      return;
+    }
+
+    const nomesMeses = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro'
+    ];
+
+    const totais = new Array(12).fill(0);
+
+    dashboardDados.rows.forEach(row => {
+
+      const partes =
+        extrairPartesData(
+          row[indiceDataReserva]
+        );
+
+      if (!partes) {
+        return;
+      }
+
+      if (
+        anoSelecionado &&
+        partes.ano !== anoSelecionado
+      ) {
+        return;
+      }
+
+      totais[partes.mes - 1]++;
+    });
+
+    const mesesParaMostrar =
+      mesSelecionado
+        ? [mesSelecionado]
+        : Array.from(
+            { length: 12 },
+            (_, i) => i + 1
+          );
+
+    let html =
+      '<table class="dashboard-table">' +
+      '<thead>' +
+      '<tr>' +
+      '<th>Mês</th>' +
+      '<th>Quantidade</th>' +
+      '</tr>' +
+      '</thead>' +
+      '<tbody>';
+
+    mesesParaMostrar.forEach(mes => {
+
+      html +=
+        '<tr>' +
+        '<td>' +
+        escapeHtml(
+          nomesMeses[mes - 1]
+        ) +
+        '</td>' +
+        '<td>' +
+        escapeHtml(
+          totais[mes - 1]
+        ) +
+        '</td>' +
+        '</tr>';
+    });
+
+    html +=
+      '</tbody>' +
+      '</table>';
+
+    container.className = '';
+    container.innerHTML = html;
+  }
+
+
+  function localizarIndiceCabecalho(
+    headers,
+    cabecalho
+  ) {
+
+    const alvo =
+      normalizarTextoDashboard(
+        cabecalho
+      );
+
+    return headers.findIndex(
+      h =>
+        normalizarTextoDashboard(h) ===
+        alvo
+    );
+  }
+
+
+  function normalizarTextoDashboard(valor) {
+
+    return String(
+      valor == null
+        ? ''
+        : valor
+    )
+      .normalize('NFD')
+      .replace(
+        /[\u0300-\u036f]/g,
+        ''
+      )
+      .trim()
+      .toLowerCase();
+  }
+
+
+  function extrairPartesData(valor) {
+
+    if (
+      valor == null ||
+      String(valor).trim() === ''
+    ) {
+      return null;
+    }
+
+    const texto =
+      String(valor).trim();
+
+    // DD/MM/AAAA
+    let match =
+      texto.match(
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4})/
+      );
+
+    if (match) {
+
+      const dia = Number(match[1]);
+      const mes = Number(match[2]);
+      const ano = Number(match[3]);
+
+      if (
+        dia >= 1 &&
+        dia <= 31 &&
+        mes >= 1 &&
+        mes <= 12
+      ) {
+        return { dia, mes, ano };
+      }
+    }
+
+    // AAAA-MM-DD
+    match =
+      texto.match(
+        /^(\d{4})-(\d{1,2})-(\d{1,2})/
+      );
+
+    if (match) {
+
+      const ano = Number(match[1]);
+      const mes = Number(match[2]);
+      const dia = Number(match[3]);
+
+      if (
+        dia >= 1 &&
+        dia <= 31 &&
+        mes >= 1 &&
+        mes <= 12
+      ) {
+        return { dia, mes, ano };
+      }
+    }
+
+    // Tenta interpretar outros formatos reconhecidos pelo navegador.
+    const data =
+      new Date(texto);
+
+    if (!isNaN(data.getTime())) {
+
+      return {
+        dia: data.getDate(),
+        mes: data.getMonth() + 1,
+        ano: data.getFullYear()
+      };
+    }
+
+    return null;
   }
 
 
