@@ -311,6 +311,153 @@
       transform: none;
     }
 
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, .58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 9999;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal {
+      width: min(980px, 96vw);
+      max-height: 92vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 24px 70px rgba(0,0,0,.28);
+      border: 1px solid var(--border);
+    }
+
+    .modal-small {
+      width: min(520px, 96vw);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 2;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 21px;
+    }
+
+    .modal-close {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      background: #f3f4f6;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .modal-body {
+      padding: 22px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .campo-form {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .campo-form label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4b5563;
+    }
+
+    .campo-form input,
+    .campo-form select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: #fff;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 18px 22px;
+      border-top: 1px solid var(--border);
+      background: #f9fafb;
+      position: sticky;
+      bottom: 0;
+    }
+
+    .secondary {
+      background: #e5e7eb;
+      color: #111827;
+      border: 0;
+      padding: 11px 18px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .danger-btn {
+      background: #dc2626;
+      color: white;
+      border: 0;
+      padding: 11px 18px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .modal-status {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+      white-space: pre-line;
+    }
+
+    .modal-status.ok {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .modal-status.error {
+      display: block;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    @media (max-width: 760px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 760px) {
       .sidebar {
         width: 76px;
@@ -892,6 +1039,8 @@
 
   function renderTabela(data) {
 
+    dadosListagemAtual = data;
+
     document
       .getElementById('contador')
       .textContent =
@@ -971,6 +1120,8 @@
       .filter(coluna =>
         coluna.index !== undefined
       );
+
+    colunasListagemAtual = colunasEncontradas;
 
     if (!colunasEncontradas.length) {
 
@@ -1069,22 +1220,428 @@
 
   /****************************************************
    * AÇÕES DA TABELA
-   *
-   * Os ícones já estão disponíveis na interface.
-   * A persistência no Google Sheets será ligada
-   * aos endpoints de editar/excluir no Apps Script.
    ****************************************************/
 
+  let dadosListagemAtual = null;
+  let colunasListagemAtual = [];
+  let edicaoAtual = null;
+  let exclusaoAtual = null;
+
+  const CAMPOS_EDITAVEIS = [
+    'ID Reserva',
+    'Localizador',
+    'ID no fornecedor',
+    'Hotel',
+    'Cidade',
+    'Data de check-in',
+    'Data de check-out',
+    'Data da reserva',
+    'Situação',
+    'Hotel Net (sem taxas)',
+    'Impostos e Taxas',
+    'Markup',
+    'Pagto ao fornecedor',
+    'Cartão Fornecedor',
+    'Pax',
+    'Comissão a receber (%)',
+    'Comissão a receber',
+    'Tipo de pagamento',
+    'CC Cod.Aut. (recebido)'
+  ];
+
   function editarTransacao(rowIndex) {
-    console.log('Editar transação:', rowIndex);
+
+    if (!dadosListagemAtual) {
+      return;
+    }
+
+    const row = dadosListagemAtual.rows[rowIndex];
+
+    if (!row) {
+      return;
+    }
+
+    const indiceId = localizarIndiceCabecalho(
+      dadosListagemAtual.headers,
+      'ID Reserva'
+    );
+
+    if (indiceId === -1) {
+      alert('Não foi possível localizar o ID da Reserva.');
+      return;
+    }
+
+    const idOriginal = row[indiceId];
+
+    edicaoAtual = {
+      rowIndex: rowIndex,
+      idOriginal: idOriginal
+    };
+
+    const container =
+      document.getElementById('formEditarCampos');
+
+    container.innerHTML = '';
+
+    CAMPOS_EDITAVEIS.forEach(nomeCampo => {
+
+      const indice =
+        localizarIndiceCabecalho(
+          dadosListagemAtual.headers,
+          nomeCampo
+        );
+
+      if (indice === -1) {
+        return;
+      }
+
+      const valor = row[indice] == null ? '' : row[indice];
+
+      const wrapper =
+        document.createElement('div');
+
+      wrapper.className = 'campo-form';
+
+      const label =
+        document.createElement('label');
+
+      label.textContent = nomeCampo;
+
+      const input =
+        document.createElement('input');
+
+      input.type = 'text';
+      input.dataset.campo = nomeCampo;
+      input.value = prepararValorParaEdicao(nomeCampo, valor);
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+    });
+
+    const status =
+      document.getElementById('editarStatus');
+
+    status.className = 'modal-status';
+    status.textContent = '';
+
+    document
+      .getElementById('modalEditar')
+      .classList.add('active');
   }
 
-  function excluirTransacao(rowIndex) {
-    console.log('Excluir transação:', rowIndex);
-  }
 
   function salvarTransacao(rowIndex) {
-    console.log('Salvar transação:', rowIndex);
+    editarTransacao(rowIndex);
+  }
+
+
+  function prepararValorParaEdicao(campo, valor) {
+
+    const camposData = [
+      'Data de check-in',
+      'Data de check-out',
+      'Data da reserva'
+    ];
+
+    const camposMoeda = [
+      'Hotel Net (sem taxas)',
+      'Impostos e Taxas',
+      'Markup',
+      'Comissão a receber'
+    ];
+
+    if (camposData.includes(campo)) {
+      return formatarDataBR(valor);
+    }
+
+    if (camposMoeda.includes(campo)) {
+      const formatado = formatarMoedaBR(valor);
+      return String(formatado).replace(/^R\$\s?/, '');
+    }
+
+    return String(valor == null ? '' : valor);
+  }
+
+
+  async function salvarEdicao() {
+
+    if (!edicaoAtual) {
+      return;
+    }
+
+    const btn =
+      document.getElementById('btnSalvarEdicao');
+
+    const status =
+      document.getElementById('editarStatus');
+
+    const atualizacoes = {};
+
+    document
+      .querySelectorAll('#formEditarCampos [data-campo]')
+      .forEach(input => {
+
+        atualizacoes[input.dataset.campo] =
+          input.value;
+      });
+
+    try {
+
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      status.className = 'modal-status';
+      status.style.display = 'block';
+      status.textContent = 'Atualizando a linha na planilha...';
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action: 'atualizar',
+              idOriginal: edicaoAtual.idOriginal,
+              atualizacoes: atualizacoes
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let res;
+
+      try {
+        res = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error('O Apps Script retornou uma resposta inválida.');
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível atualizar a transação.'
+        );
+      }
+
+      status.className = 'modal-status ok';
+      status.textContent =
+        'Alterações salvas na mesma linha da planilha.';
+
+      await carregarTransacoes();
+
+      if (
+        document
+          .getElementById('page-dashboard')
+          .classList.contains('active')
+      ) {
+        await carregarDashboard();
+      }
+
+      setTimeout(() => {
+        fecharModalEditar();
+      }, 700);
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      status.className = 'modal-status error';
+      status.textContent =
+        erro && erro.message
+          ? erro.message
+          : String(erro);
+
+    } finally {
+
+      btn.disabled = false;
+      btn.textContent = '✓ Salvar alterações';
+    }
+  }
+
+
+  function excluirTransacao(rowIndex) {
+
+    if (!dadosListagemAtual) {
+      return;
+    }
+
+    const row =
+      dadosListagemAtual.rows[rowIndex];
+
+    if (!row) {
+      return;
+    }
+
+    const indiceId =
+      localizarIndiceCabecalho(
+        dadosListagemAtual.headers,
+        'ID Reserva'
+      );
+
+    const indiceHotel =
+      localizarIndiceCabecalho(
+        dadosListagemAtual.headers,
+        'Hotel'
+      );
+
+    if (indiceId === -1) {
+      alert('Não foi possível localizar o ID da Reserva.');
+      return;
+    }
+
+    const idReserva = row[indiceId];
+    const hotel =
+      indiceHotel !== -1
+        ? row[indiceHotel]
+        : '';
+
+    exclusaoAtual = {
+      rowIndex: rowIndex,
+      idReserva: idReserva
+    };
+
+    document
+      .getElementById('textoConfirmacaoExclusao')
+      .textContent =
+        'Reserva: ' +
+        idReserva +
+        (hotel ? ' • ' + hotel : '');
+
+    const status =
+      document.getElementById('excluirStatus');
+
+    status.className = 'modal-status';
+    status.textContent = '';
+
+    document
+      .getElementById('modalExcluir')
+      .classList.add('active');
+  }
+
+
+  async function confirmarExclusao() {
+
+    if (!exclusaoAtual) {
+      return;
+    }
+
+    const btn =
+      document.getElementById('btnConfirmarExclusao');
+
+    const status =
+      document.getElementById('excluirStatus');
+
+    try {
+
+      btn.disabled = true;
+      btn.textContent = 'Excluindo...';
+
+      status.className = 'modal-status';
+      status.style.display = 'block';
+      status.textContent =
+        'Removendo a linha da planilha...';
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action: 'excluir',
+              idReserva: exclusaoAtual.idReserva
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let res;
+
+      try {
+        res = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error('O Apps Script retornou uma resposta inválida.');
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível excluir a transação.'
+        );
+      }
+
+      status.className = 'modal-status ok';
+      status.textContent =
+        'Transação excluída da planilha.';
+
+      await carregarTransacoes();
+
+      setTimeout(() => {
+        fecharModalExcluir();
+      }, 650);
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      status.className = 'modal-status error';
+      status.textContent =
+        erro && erro.message
+          ? erro.message
+          : String(erro);
+
+    } finally {
+
+      btn.disabled = false;
+      btn.textContent = '✕ Excluir';
+    }
+  }
+
+
+  function fecharModalEditar() {
+    document
+      .getElementById('modalEditar')
+      .classList.remove('active');
+
+    edicaoAtual = null;
+  }
+
+
+  function fecharModalExcluir() {
+    document
+      .getElementById('modalExcluir')
+      .classList.remove('active');
+
+    exclusaoAtual = null;
+  }
+
+
+  function fecharModalAoFundo(event, idModal) {
+
+    if (event.target.id === idModal) {
+
+      if (idModal === 'modalEditar') {
+        fecharModalEditar();
+      }
+
+      if (idModal === 'modalExcluir') {
+        fecharModalExcluir();
+      }
+    }
   }
 
 
@@ -1576,6 +2133,53 @@
   }
 
 </script>
+
+
+<!-- MODAL EDITAR -->
+<div id="modalEditar" class="modal-backdrop" onclick="fecharModalAoFundo(event, 'modalEditar')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Editar transação</h2>
+      <button class="modal-close" type="button" onclick="fecharModalEditar()">×</button>
+    </div>
+
+    <div class="modal-body">
+      <div id="formEditarCampos" class="form-grid"></div>
+      <div id="editarStatus" class="modal-status"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="secondary" type="button" onclick="fecharModalEditar()">Cancelar</button>
+      <button class="primary" id="btnSalvarEdicao" type="button" onclick="salvarEdicao()">✓ Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EXCLUIR -->
+<div id="modalExcluir" class="modal-backdrop" onclick="fecharModalAoFundo(event, 'modalExcluir')">
+  <div class="modal modal-small">
+    <div class="modal-header">
+      <h2>Excluir transação</h2>
+      <button class="modal-close" type="button" onclick="fecharModalExcluir()">×</button>
+    </div>
+
+    <div class="modal-body">
+      <p style="margin-top:0">
+        Tem certeza de que deseja excluir esta transação da planilha?
+      </p>
+      <p id="textoConfirmacaoExclusao" style="font-weight:700"></p>
+      <p style="color:#b91c1c; margin-bottom:0">
+        Esta ação remove a linha do Google Sheets.
+      </p>
+      <div id="excluirStatus" class="modal-status"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="secondary" type="button" onclick="fecharModalExcluir()">Cancelar</button>
+      <button class="danger-btn" id="btnConfirmarExclusao" type="button" onclick="confirmarExclusao()">✕ Excluir</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
