@@ -973,10 +973,22 @@
               'Data da reserva'
             ];
 
-            const valorExibido =
-              colunasData.includes(coluna.nome)
-                ? formatarDataBR(valorOriginal)
-                : valorOriginal;
+            const colunasMoeda = [
+              'Hotel Net (sem taxas)',
+              'Impostos e Taxas',
+              'Markup',
+              'Comissão a receber'
+            ];
+
+            let valorExibido = valorOriginal;
+
+            if (colunasData.includes(coluna.nome)) {
+              valorExibido = formatarDataBR(valorOriginal);
+            }
+
+            if (colunasMoeda.includes(coluna.nome)) {
+              valorExibido = formatarMoedaBR(valorOriginal);
+            }
 
             html +=
               '<td>' +
@@ -1372,6 +1384,51 @@
     }
 
     return null;
+  }
+
+
+  /****************************************************
+   * FORMATA VALORES PARA REAL BRASILEIRO
+   ****************************************************/
+
+  function formatarMoedaBR(valor) {
+
+    if (valor == null || String(valor).trim() === '') {
+      return '';
+    }
+
+    let texto = String(valor)
+      .trim()
+      .replace(/\s/g, '')
+      .replace(/^R\$/i, '');
+
+    let numero;
+
+    // Formato brasileiro: 1.234,56
+    if (texto.includes(',')) {
+      numero = Number(
+        texto
+          .replace(/\./g, '')
+          .replace(',', '.')
+      );
+    } else {
+      // Número puro ou formato 1234.56
+      numero = Number(texto);
+    }
+
+    if (!Number.isFinite(numero)) {
+      return String(valor);
+    }
+
+    return numero.toLocaleString(
+      'pt-BR',
+      {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    );
   }
 
 
