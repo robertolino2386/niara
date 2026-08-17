@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Importador de Reservas</title>
+  <title>Conciliação Niara</title>
 
   <style>
     :root {
@@ -54,6 +54,47 @@
 
     .brand span {
       color: var(--accent);
+    }
+
+    .brand-logo {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .logo-niara {
+      width: 150px;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .sidebar-footer {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 20px;
+      display: flex;
+      justify-content: center;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.12);
+    }
+
+    .logo-copastur {
+      max-width: 150px;
+      max-height: 46px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
     }
 
     .nav-btn {
@@ -202,6 +243,23 @@
     }
 
     tr:hover td {
+      background: #f9fafb;
+    }
+
+    .table-wrap table th:first-child,
+    .table-wrap table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: #fff;
+    }
+
+    .table-wrap table th:first-child {
+      background: #fff200;
+      z-index: 4;
+    }
+
+    .table-wrap table tr:hover td:first-child {
       background: #f9fafb;
     }
 
@@ -473,6 +531,30 @@
         font-size: 22px;
       }
 
+      .brand-logo {
+        align-items: center;
+        padding: 0;
+      }
+
+      .logo-niara {
+        width: 48px;
+        max-height: 48px;
+      }
+
+      .brand-title {
+        display: none;
+      }
+
+      .sidebar-footer {
+        left: 8px;
+        right: 8px;
+      }
+
+      .logo-copastur {
+        max-width: 52px;
+        max-height: 34px;
+      }
+
       .nav-btn {
         font-size: 0;
         text-align: center;
@@ -496,7 +578,10 @@
 <div class="app">
 
   <aside class="sidebar">
-    <div class="brand">Reservas <span>Hub</span></div>
+    <div class="brand brand-logo">
+      <img src="niara.png" alt="Niara" class="logo-niara">
+      <div class="brand-title">Conciliação <span>Niara</span></div>
+    </div>
 
     <button
       class="nav-btn active"
@@ -518,6 +603,10 @@
       onclick="trocarPagina('dashboard')">
       ▦ Dashboard
     </button>
+
+    <div class="sidebar-footer">
+      <img src="copastur.png" alt="Copastur" class="logo-copastur">
+    </div>
   </aside>
 
   <main class="content">
@@ -1138,6 +1227,8 @@
       '<thead>' +
       '<tr>';
 
+    html += '<th>Ações</th>';
+
     colunasEncontradas.forEach(
       coluna => {
 
@@ -1147,8 +1238,6 @@
           '</th>';
       }
     );
-
-    html += '<th>Ações</th>';
 
     html +=
       '</tr>' +
@@ -1160,6 +1249,15 @@
 
         html +=
           '<tr id="transacao-row-' + rowIndex + '">';
+
+        html +=
+          '<td>' +
+            '<div class="acoes-linha">' +
+              '<button class="acao-btn acao-editar" type="button" title="Editar" aria-label="Editar" onclick="editarTransacao(' + rowIndex + ')">✎</button>' +
+              '<button class="acao-btn acao-excluir" type="button" title="Excluir" aria-label="Excluir" onclick="excluirTransacao(' + rowIndex + ')">✕</button>' +
+              '<button class="acao-btn acao-salvar" type="button" title="Salvar" aria-label="Salvar" onclick="salvarTransacao(' + rowIndex + ')">✓</button>' +
+            '</div>' +
+          '</td>';
 
         colunasEncontradas.forEach(
           coluna => {
@@ -1195,15 +1293,6 @@
               '</td>';
           }
         );
-
-        html +=
-          '<td>' +
-            '<div class="acoes-linha">' +
-              '<button class="acao-btn acao-editar" type="button" title="Editar" aria-label="Editar" onclick="editarTransacao(' + rowIndex + ')">✎</button>' +
-              '<button class="acao-btn acao-excluir" type="button" title="Excluir" aria-label="Excluir" onclick="excluirTransacao(' + rowIndex + ')">✕</button>' +
-              '<button class="acao-btn acao-salvar" type="button" title="Salvar" aria-label="Salvar" onclick="salvarTransacao(' + rowIndex + ')">✓</button>' +
-            '</div>' +
-          '</td>';
 
         html += '</tr>';
       }
