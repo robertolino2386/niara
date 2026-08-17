@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Importador de Reservas</title>
+  <style>
+    :root {
+      --sidebar: #111827;
+      --sidebar2: #1f2937;
+      --accent: #facc15;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --success: #166534;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 250px; background: linear-gradient(180deg, var(--sidebar), var(--sidebar2)); color: white; padding: 24px 16px; position: fixed; inset: 0 auto 0 0; }
+    .brand { font-size: 20px; font-weight: 700; margin-bottom: 28px; padding: 0 10px; }
+    .brand span { color: var(--accent); }
+    .nav-btn { width: 100%; border: 0; background: transparent; color: #d1d5db; text-align: left; padding: 12px 14px; border-radius: 9px; margin: 4px 0; cursor: pointer; font-size: 14px; }
+    .nav-btn:hover, .nav-btn.active { background: rgba(255,255,255,.1); color: #fff; }
+    .content { margin-left: 250px; width: calc(100% - 250px); padding: 30px; }
+    .page { display: none; }
+    .page.active { display: block; }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    .subtitle { color: var(--muted); margin: 0 0 24px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: 0 3px 12px rgba(0,0,0,.04); }
+    .upload-area { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 34px; text-align: center; background: #f8fafc; }
+    input[type=file] { margin: 14px auto; display: block; max-width: 100%; }
+    .primary { background: var(--accent); color: #111827; border: 0; padding: 11px 18px; border-radius: 9px; cursor: pointer; font-weight: 700; }
+    .primary:disabled { opacity: .55; cursor: not-allowed; }
+    .status { margin-top: 18px; padding: 14px; border-radius: 9px; display: none; white-space: pre-line; }
+    .status.ok { display: block; background: #dcfce7; color: var(--success); }
+    .status.error { display: block; background: #fee2e2; color: var(--danger); }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .search { flex: 1; min-width: 220px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; }
+    .table-wrap { background: white; border: 1px solid var(--border); border-radius: 12px; overflow: auto; max-height: calc(100vh - 210px); }
+    table { border-collapse: collapse; min-width: 1900px; width: 100%; font-size: 13px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    th { position: sticky; top: 0; background: #fff200; z-index: 1; }
+    tr:hover td { background: #f9fafb; }
+    .badge { display: inline-block; background: #e5e7eb; border-radius: 999px; padding: 5px 9px; font-size: 12px; color: #374151; }
+    .loading { color: var(--muted); padding: 20px; text-align: center; }
+    @media (max-width: 760px) {
+      .sidebar { width: 76px; padding: 20px 8px; }
+      .brand { font-size: 0; text-align: center; }
+      .brand span { font-size: 22px; }
+      .nav-btn { font-size: 0; text-align: center; }
+      .nav-btn::first-letter { font-size: 18px; }
+      .content { margin-left: 76px; width: calc(100% - 76px); padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">Reservas <span>Hub</span></div>
+    <button class="nav-btn active" id="btn-importar" onclick="trocarPagina('importar')">⬆ Importar arquivos</button>
+    <button class="nav-btn" id="btn-listar" onclick="trocarPagina('listar')">☰ Listar transações</button>
+  </aside>
+
+  <main class="content">
+    <section id="page-importar" class="page active">
+      <h1>Importar arquivos</h1>
+      <p class="subtitle">O sistema utiliza somente a aba <b>Reservas</b> e ignora IDs de Reserva que já foram importados.</p>
+      <div class="card">
+        <form id="uploadForm" onsubmit="enviarArquivo(this); return false;">
+          <div class="upload-area">
+            <div style="font-size:34px">📄</div>
+            <h3>Selecione a planilha XLSX</h3>
+            <p class="subtitle" style="margin-bottom:8px">As demais abas do Excel serão desconsideradas.</p>
+            <input type="file" name="arquivo" id="arquivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+            <button class="primary" id="btnUpload" type="submit">Importar arquivo</button>
+          </div>
+        </form>
+        <div id="uploadStatus" class="status"></div>
+      </div>
+    </section>
+
+    <section id="page-listar" class="page">
+      <h1>Transações importadas</h1>
+      <p class="subtitle">Dados salvos no Google Sheets.</p>
+      <div class="toolbar">
+        <input id="busca" class="search" type="search" placeholder="Buscar por ID, hotel, cidade, situação..." onkeydown="if(event.key==='Enter') carregarTransacoes();">
+        <button class="primary" onclick="carregarTransacoes()">Buscar / Atualizar</button>
+        <span id="contador" class="badge">0 registros</span>
+      </div>
+      <div class="table-wrap">
+        <div id="tabela" class="loading">Clique em “Buscar / Atualizar” para carregar.</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  function trocarPagina(nome) {
+    document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('page-' + nome).classList.add('active');
+    document.getElementById('btn-' + nome).classList.add('active');
+    if (nome === 'listar') carregarTransacoes();
+  }
+
+  function enviarArquivo(form) {
+    const file = document.getElementById('arquivo').files[0];
+    const status = document.getElementById('uploadStatus');
+    const btn = document.getElementById('btnUpload');
+
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      mostrarStatus('error', 'Envie um arquivo .xlsx.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+    status.className = 'status';
+    status.style.display = 'block';
+    status.textContent = 'Lendo e processando o arquivo. Aguarde...';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        btn.disabled = false;
+        btn.textContent = 'Importar arquivo';
+        form.reset();
+        const extra = res.aviso ? '\n' + res.aviso : '';
+        mostrarStatus('ok',
+          'Importação concluída!\n' +
+          'Arquivo: ' + res.arquivo + '\n' +
+          'Linhas lidas: ' + res.linhasLidas + '\n' +
+          'Novos registros: ' + res.importadas + '\n' +
+          'Duplicados ignorados: ' + res.duplicadas + extra
+        );
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false;
+        btn.textContent = 'Importar arquivo';
+        mostrarStatus('error', err && err.message ? err.message : String(err));
+      })
+      .importarArquivo(form);
+  }
+
+  function mostrarStatus(tipo, mensagem) {
+    const status = document.getElementById('uploadStatus');
+    status.className = 'status ' + tipo;
+    status.textContent = mensagem;
+  }
+
+  function carregarTransacoes() {
+    const tabela = document.getElementById('tabela');
+    tabela.className = 'loading';
+    tabela.textContent = 'Carregando transações...';
+    const termo = document.getElementById('busca').value || '';
+
+    google.script.run
+      .withSuccessHandler(renderTabela)
+      .withFailureHandler(err => {
+        tabela.className = 'loading';
+        tabela.textContent = 'Erro: ' + (err && err.message ? err.message : String(err));
+      })
+      .listarTransacoes({ termo });
+  }
+
+  function renderTabela(data) {
+    document.getElementById('contador').textContent = data.total + ' registro(s)';
+    const container = document.getElementById('tabela');
+    container.className = '';
+
+    if (!data.rows.length) {
+      container.innerHTML = '<div class="loading">Nenhum registro encontrado.</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr>';
+    data.headers.forEach(h => html += '<th>' + escapeHtml(h) + '</th>');
+    html += '</tr></thead><tbody>';
+
+    data.rows.forEach(row => {
+      html += '<tr>';
+      row.forEach(cell => html += '<td>' + escapeHtml(cell) + '</td>');
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+</script>
+</body>
+</html>
