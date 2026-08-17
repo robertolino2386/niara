@@ -842,11 +842,22 @@
         colunasEncontradas.forEach(
           coluna => {
 
+            const valorOriginal = row[coluna.index];
+
+            const colunasData = [
+              'Data de check-in',
+              'Data de check-out',
+              'Data da reserva'
+            ];
+
+            const valorExibido =
+              colunasData.includes(coluna.nome)
+                ? formatarDataBR(valorOriginal)
+                : valorOriginal;
+
             html +=
               '<td>' +
-              escapeHtml(
-                row[coluna.index]
-              ) +
+              escapeHtml(valorExibido) +
               '</td>';
           }
         );
@@ -861,6 +872,53 @@
 
     container.innerHTML =
       html;
+  }
+
+
+  /****************************************************
+   * FORMATA DATAS PARA DD/MM/AAAA
+   ****************************************************/
+
+  function formatarDataBR(valor) {
+
+    if (valor == null || valor === '') {
+      return '';
+    }
+
+    const texto = String(valor).trim();
+
+    // Já está no padrão brasileiro.
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+      return texto;
+    }
+
+    // Formato ISO: 2026-08-17 ou 2026-08-17T...
+    const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+    if (iso) {
+      return iso[3] + '/' + iso[2] + '/' + iso[1];
+    }
+
+    // Formato americano comum: MM/DD/YYYY
+    const americano = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+    if (americano) {
+      return String(americano[2]).padStart(2, '0') + '/' +
+             String(americano[1]).padStart(2, '0') + '/' +
+             americano[3];
+    }
+
+    // Tenta interpretar outros formatos de data.
+    const data = new Date(texto);
+
+    if (!isNaN(data.getTime())) {
+      return String(data.getDate()).padStart(2, '0') + '/' +
+             String(data.getMonth() + 1).padStart(2, '0') + '/' +
+             data.getFullYear();
+    }
+
+    // Se não conseguir interpretar, mantém o valor original.
+    return texto;
   }
 
 
