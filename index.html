@@ -128,6 +128,71 @@
       color: #1d4ed8;
     }
 
+    .status-conciliado {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .comparacao-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .comparacao-row {
+      display: grid;
+      grid-template-columns: 190px 1fr 1fr;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .comparacao-label,
+    .comparacao-origem,
+    .comparacao-sql {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 10px 12px;
+      font-size: 13px;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .comparacao-label {
+      background: #f3f4f6;
+      font-weight: 700;
+    }
+
+    .comparacao-origem {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .comparacao-sql {
+      background: #f8fafc;
+    }
+
+    .comparacao-igual {
+      background: #dcfce7 !important;
+      color: #166534 !important;
+      border-color: #86efac !important;
+    }
+
+    .comparacao-header {
+      display: grid;
+      grid-template-columns: 190px 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4b5563;
+    }
+
+    @media (max-width: 760px) {
+      .comparacao-row,
+      .comparacao-header {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .conciliacao-acoes {
       display: flex;
       gap: 8px;
@@ -841,7 +906,7 @@
 
       <p class="subtitle">
         Exporte o resultado da sua query do SQL Server e envie o arquivo aqui.
-        A Base SQL é acumulativa: registros existentes são atualizados e novos registros são acrescentados.
+        A Base SQL é acumulativa. A chave de atualização é <b>CONFIRMACAO + BB_RLOC + INFOS</b>: se já existir, a linha é atualizada; se não existir, uma nova linha é acrescentada.
       </p>
 
       <div class="card">
@@ -907,13 +972,14 @@
         <select
           id="filtroStatusConciliacao"
           class="search"
-          style="flex:0 0 210px"
+          style="flex:0 0 220px"
           onchange="carregarConciliacao()">
+          <option value="Pendentes" selected>Pendentes</option>
           <option value="">Todos os status</option>
           <option value="Encontrado">Encontrado</option>
           <option value="Não encontrado">Não encontrado</option>
           <option value="Seleção necessária">Seleção necessária</option>
-          <option value="Selecionado">Selecionado</option>
+          <option value="Conciliado">Conciliados</option>
         </select>
 
         <button
@@ -946,36 +1012,13 @@
       <h1>Dashboard</h1>
 
       <p class="subtitle">
-        Quantidade de transações por mês, considerando a coluna <b>Data da reserva</b>.
+        Acompanhamento mensal de transações conciliadas e pendentes pela <b>Data da reserva</b>.
       </p>
 
       <div class="card">
 
         <div class="dashboard-filtros">
-
-          <div class="filtro-grupo">
-            <label for="dashboardMes">Mês</label>
-            <select
-              id="dashboardMes"
-              class="filtro-select"
-              onchange="renderDashboard()">
-              <option value="">Todos os meses</option>
-              <option value="1">Janeiro</option>
-              <option value="2">Fevereiro</option>
-              <option value="3">Março</option>
-              <option value="4">Abril</option>
-              <option value="5">Maio</option>
-              <option value="6">Junho</option>
-              <option value="7">Julho</option>
-              <option value="8">Agosto</option>
-              <option value="9">Setembro</option>
-              <option value="10">Outubro</option>
-              <option value="11">Novembro</option>
-              <option value="12">Dezembro</option>
-            </select>
-          </div>
-
-          <div class="filtro-grupo">
+<div class="filtro-grupo">
             <label for="dashboardAno">Ano</label>
             <select
               id="dashboardAno"
@@ -2253,11 +2296,11 @@
         if (item.quantidadeSql > 0) {
 
           const label =
-            item.quantidadeSql > 1
-              ? 'Selecionar'
+            item.status === 'Conciliado'
+              ? 'Ver'
               : (
-                  item.status === 'Selecionado'
-                    ? 'Ver'
+                  item.quantidadeSql > 1
+                    ? 'Selecionar'
                     : 'Usar'
                 );
 
@@ -2340,10 +2383,10 @@
     }
 
     if (
-      status === 'Selecionado'
+      status === 'Conciliado'
     ) {
       classe =
-        'status-selecionado';
+        'status-conciliado';
     }
 
     return (
@@ -2387,7 +2430,7 @@
 
     resumo.innerHTML =
       '<div class="card" style="padding:14px">' +
-      '<b>Base importada</b><br>' +
+      '<b>Pedido selecionado</b><br>' +
       'Localizador: ' +
       escapeHtml(item.localizador) +
       (item.hotel
@@ -2480,20 +2523,75 @@
       return;
     }
 
-    const camposPreferenciais = [
-      'CONFIRMACAO',
-      'BB_RLOC',
-      'HOTEL',
-      'PASSAGEIRONAOCAD',
-      'RECEBIMENTO',
-      'AUTORIZACAOCARTAO',
-      'INFOS',
-      'BB_HOTEL_ENTRADA',
-      'BB_HOTEL_SAIDA',
-      'TARIFA',
-      'TAXA',
-      'MARKUP',
-      'EXTRAS'
+    const origem =
+      data.origem || {};
+
+    const linhaSelecionada =
+      Number(
+        data.linhaBaseSqlSelecionada || 0
+      );
+
+    const mapeamento = [
+      {
+        label: 'Localizador',
+        origem: 'Localizador',
+        sql: 'CONFIRMACAO',
+        tipo: 'texto'
+      },
+      {
+        label: 'Hotel',
+        origem: 'Hotel',
+        sql: 'HOTEL',
+        tipo: 'texto'
+      },
+      {
+        label: 'Pax',
+        origem: 'Pax',
+        sql: 'PASSAGEIRONAOCAD',
+        tipo: 'texto'
+      },
+      {
+        label: 'Data de check-in',
+        origem: 'Data de check-in',
+        sql: 'BB_HOTEL_ENTRADA',
+        tipo: 'data'
+      },
+      {
+        label: 'Data de check-out',
+        origem: 'Data de check-out',
+        sql: 'BB_HOTEL_SAIDA',
+        tipo: 'data'
+      },
+      {
+        label: 'Hotel Net (sem taxas)',
+        origem: 'Hotel Net (sem taxas)',
+        sql: 'TARIFA',
+        tipo: 'moeda'
+      },
+      {
+        label: 'Impostos e Taxas',
+        origem: 'Impostos e Taxas',
+        sql: 'TAXA',
+        tipo: 'moeda'
+      },
+      {
+        label: 'Markup',
+        origem: 'Markup',
+        sql: 'MARKUP',
+        tipo: 'moeda'
+      },
+      {
+        label: 'Tipo de pagamento',
+        origem: 'Tipo de pagamento',
+        sql: 'RECEBIMENTO',
+        tipo: 'texto'
+      },
+      {
+        label: 'Autorização',
+        origem: 'CC Cod.Aut. (recebido)',
+        sql: 'AUTORIZACAOCARTAO',
+        tipo: 'texto'
+      }
     ];
 
     let html = '';
@@ -2502,7 +2600,7 @@
       (cand, idx) => {
 
         const selecionado =
-          Number(item.linhaBaseSqlSelecionada) ===
+          linhaSelecionada ===
           Number(cand.linha);
 
         html +=
@@ -2511,9 +2609,10 @@
         html +=
           '<div class="candidate-card-header">' +
           '<div class="candidate-card-title">' +
-          'Opção ' + (idx + 1) +
+          'Opção ' +
+          (idx + 1) +
           (selecionado
-            ? ' • Selecionada'
+            ? ' • Conciliada'
             : '') +
           '</div>';
 
@@ -2527,61 +2626,119 @@
           cand.linha +
           ')">' +
           (selecionado
-            ? 'Selecionado ✓'
-            : 'Selecionar') +
+            ? 'Conciliado ✓'
+            : 'Selecionar e conciliar') +
           '</button>' +
           '</div>';
 
         html +=
-          '<div class="candidate-grid">';
+          '<div style="padding:14px">';
 
-        camposPreferenciais.forEach(
-          campo => {
+        html +=
+          '<div class="comparacao-header">' +
+          '<div>Campo</div>' +
+          '<div>Base importada</div>' +
+          '<div>Base SQL</div>' +
+          '</div>';
+
+        html +=
+          '<div class="comparacao-grid">';
+
+        mapeamento.forEach(
+          mapa => {
+
+            let valorOrigem =
+              origem[
+                mapa.origem
+              ];
+
+            let valorSql =
+              cand.dados[
+                mapa.sql
+              ];
 
             if (
-              cand.dados[campo] === undefined
+              valorOrigem ===
+              undefined
             ) {
-              return;
-            }
-
-            let valor =
-              cand.dados[campo];
-
-            if (
-              [
-                'BB_HOTEL_ENTRADA',
-                'BB_HOTEL_SAIDA'
-              ].includes(campo)
-            ) {
-              valor =
-                formatarDataBR(valor);
+              valorOrigem = '';
             }
 
             if (
-              [
-                'TARIFA',
-                'TAXA',
-                'MARKUP',
-                'EXTRAS'
-              ].includes(campo)
+              valorSql ===
+              undefined
             ) {
-              valor =
-                formatarMoedaBR(valor);
+              valorSql = '';
             }
+
+            if (
+              mapa.tipo ===
+              'data'
+            ) {
+              valorOrigem =
+                formatarDataBR(
+                  valorOrigem
+                );
+
+              valorSql =
+                formatarDataBR(
+                  valorSql
+                );
+            }
+
+            if (
+              mapa.tipo ===
+              'moeda'
+            ) {
+              valorOrigem =
+                formatarMoedaBR(
+                  valorOrigem
+                );
+
+              valorSql =
+                formatarMoedaBR(
+                  valorSql
+                );
+            }
+
+            const iguais =
+              compararValoresConciliacao(
+                mapa.tipo,
+                valorOrigem,
+                valorSql
+              );
 
             html +=
-              '<div class="candidate-field">' +
-              '<b>' +
-              escapeHtml(campo) +
-              '</b>' +
-              '<span>' +
-              escapeHtml(valor) +
-              '</span>' +
+              '<div class="comparacao-row">' +
+              '<div class="comparacao-label">' +
+              escapeHtml(
+                mapa.label
+              ) +
+              '</div>' +
+              '<div class="comparacao-origem ' +
+              (iguais
+                ? 'comparacao-igual'
+                : '') +
+              '">' +
+              escapeHtml(
+                valorOrigem
+              ) +
+              '</div>' +
+              '<div class="comparacao-sql ' +
+              (iguais
+                ? 'comparacao-igual'
+                : '') +
+              '">' +
+              escapeHtml(
+                valorSql
+              ) +
+              '</div>' +
               '</div>';
           }
         );
 
         html +=
+          '</div>' +
           '</div>' +
           '</div>';
       }
@@ -2589,6 +2746,106 @@
 
     lista.innerHTML =
       html;
+  }
+
+
+  function compararValoresConciliacao(
+    tipo,
+    valorA,
+    valorB
+  ) {
+
+    if (
+      tipo === 'moeda'
+    ) {
+
+      const numA =
+        numeroComparacaoBR(
+          valorA
+        );
+
+      const numB =
+        numeroComparacaoBR(
+          valorB
+        );
+
+      if (
+        numA === null ||
+        numB === null
+      ) {
+        return false;
+      }
+
+      return (
+        Math.abs(
+          numA - numB
+        ) < 0.01
+      );
+    }
+
+    if (
+      tipo === 'data'
+    ) {
+
+      return (
+        normalizarTextoDashboard(
+          formatarDataBR(
+            valorA
+          )
+        ) ===
+        normalizarTextoDashboard(
+          formatarDataBR(
+            valorB
+          )
+        )
+      );
+    }
+
+    return (
+      normalizarTextoDashboard(
+        valorA
+      ) ===
+      normalizarTextoDashboard(
+        valorB
+      )
+    );
+  }
+
+
+  function numeroComparacaoBR(
+    valor
+  ) {
+
+    if (
+      valor == null ||
+      String(valor).trim() === ''
+    ) {
+      return null;
+    }
+
+    let texto =
+      String(valor)
+        .trim()
+        .replace(/\s/g, '')
+        .replace(/^R\$/i, '');
+
+    if (
+      texto.includes(',')
+    ) {
+      texto =
+        texto
+          .replace(/\./g, '')
+          .replace(',', '.');
+    }
+
+    const numero =
+      Number(texto);
+
+    return Number.isFinite(
+      numero
+    )
+      ? numero
+      : null;
   }
 
 
@@ -2651,13 +2908,23 @@
         'modal-status ok';
 
       status.textContent =
-        'Registro selecionado com sucesso.';
+        'Pedido conciliado com sucesso.';
 
       await carregarConciliacao();
 
+      if (
+        document.getElementById(
+          'page-dashboard'
+        ).classList.contains(
+          'active'
+        )
+      ) {
+        await carregarDashboard();
+      }
+
       setTimeout(() => {
         fecharModalCandidatos();
-      }, 650);
+      }, 450);
 
     } catch (erro) {
 
@@ -2855,13 +3122,6 @@
     const container =
       document.getElementById('dashboardTabela');
 
-    const mesSelecionado =
-      Number(
-        document.getElementById(
-          'dashboardMes'
-        ).value || 0
-      );
-
     const anoSelecionado =
       Number(
         document.getElementById(
@@ -2875,6 +3135,12 @@
         'Data da reserva'
       );
 
+    const indiceStatusConciliacao =
+      localizarIndiceCabecalho(
+        dashboardDados.headers,
+        'Status Conciliação'
+      );
+
     if (indiceDataReserva === -1) {
 
       container.className = 'loading';
@@ -2885,77 +3151,136 @@
     }
 
     const nomesMeses = [
-      'Janeiro',
-      'Fevereiro',
-      'Março',
-      'Abril',
-      'Maio',
-      'Junho',
-      'Julho',
-      'Agosto',
-      'Setembro',
-      'Outubro',
-      'Novembro',
-      'Dezembro'
+      'JAN',
+      'FEV',
+      'MAR',
+      'ABR',
+      'MAI',
+      'JUN',
+      'JUL',
+      'AGO',
+      'SET',
+      'OUT',
+      'NOV',
+      'DEZ'
     ];
 
-    const totais = new Array(12).fill(0);
+    const totais =
+      Array.from(
+        { length: 12 },
+        () => ({
+          qtd: 0,
+          conciliado: 0
+        })
+      );
 
-    dashboardDados.rows.forEach(row => {
+    dashboardDados.rows.forEach(
+      row => {
 
-      const partes =
-        extrairPartesData(
-          row[indiceDataReserva]
-        );
-
-      if (!partes) {
-        return;
-      }
-
-      if (
-        anoSelecionado &&
-        partes.ano !== anoSelecionado
-      ) {
-        return;
-      }
-
-      totais[partes.mes - 1]++;
-    });
-
-    const mesesParaMostrar =
-      mesSelecionado
-        ? [mesSelecionado]
-        : Array.from(
-            { length: 12 },
-            (_, i) => i + 1
+        const partes =
+          extrairPartesData(
+            row[indiceDataReserva]
           );
+
+        if (!partes) {
+          return;
+        }
+
+        if (
+          anoSelecionado &&
+          partes.ano !==
+          anoSelecionado
+        ) {
+          return;
+        }
+
+        const item =
+          totais[
+            partes.mes - 1
+          ];
+
+        item.qtd++;
+
+        if (
+          indiceStatusConciliacao !== -1 &&
+          normalizarTextoDashboard(
+            row[
+              indiceStatusConciliacao
+            ]
+          ) ===
+          normalizarTextoDashboard(
+            'Conciliado'
+          )
+        ) {
+          item.conciliado++;
+        }
+      }
+    );
 
     let html =
       '<table class="dashboard-table">' +
       '<thead>' +
       '<tr>' +
       '<th>Mês</th>' +
-      '<th>Quantidade</th>' +
+      '<th>Qtd</th>' +
+      '<th>Qtd Conciliado</th>' +
+      '<th>Qtd Pendente</th>' +
+      '<th>% Conciliado</th>' +
       '</tr>' +
       '</thead>' +
       '<tbody>';
 
-    mesesParaMostrar.forEach(mes => {
+    totais.forEach(
+      (item, index) => {
 
-      html +=
-        '<tr>' +
-        '<td>' +
-        escapeHtml(
-          nomesMeses[mes - 1]
-        ) +
-        '</td>' +
-        '<td>' +
-        escapeHtml(
-          totais[mes - 1]
-        ) +
-        '</td>' +
-        '</tr>';
-    });
+        const pendente =
+          item.qtd -
+          item.conciliado;
+
+        const percentual =
+          item.qtd > 0
+            ? (
+                item.conciliado /
+                item.qtd
+              ) * 100
+            : 0;
+
+        html +=
+          '<tr>' +
+          '<td>' +
+          escapeHtml(
+            nomesMeses[index]
+          ) +
+          '</td>' +
+          '<td>' +
+          escapeHtml(
+            item.qtd
+          ) +
+          '</td>' +
+          '<td>' +
+          escapeHtml(
+            item.conciliado
+          ) +
+          '</td>' +
+          '<td>' +
+          escapeHtml(
+            pendente
+          ) +
+          '</td>' +
+          '<td>' +
+          escapeHtml(
+            percentual.toLocaleString(
+              'pt-BR',
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }
+            ) + '%'
+          ) +
+          '</td>' +
+          '</tr>';
+      }
+    );
 
     html +=
       '</tbody>' +
