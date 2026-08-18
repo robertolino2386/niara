@@ -2941,13 +2941,13 @@
       ['BB_RLOC', '', 'BB_RLOC', 'texto'],
       ['HOTEL', 'Hotel', 'HOTEL', 'texto'],
       ['PASSAGEIRO', 'Pax', 'PASSAGEIRONAOCAD', 'texto'],
-      ['RECEBIMENTO', 'Tipo de pagamento', 'RECEBIMENTO', 'texto'],
+      ['RECEBIMENTO', 'Tipo de pagamento', 'RECEBIMENTO', 'pagamento'],
       ['AUTORIZAÇÃO', 'CC Cod.Aut. (recebido)', 'AUTORIZACAOCARTAO', 'texto'],
       ['INFOS', '', 'INFOS', 'texto'],
       ['CHECK-IN', 'Data de check-in', 'BB_HOTEL_ENTRADA', 'data'],
       ['CHECK-OUT', 'Data de check-out', 'BB_HOTEL_SAIDA', 'data'],
       ['TARIFA', 'Hotel Net (sem taxas)', 'TARIFA', 'moeda'],
-      ['TAXA', 'Impostos e Taxas', 'TAXA', 'moeda'],
+      ['TAXA + EXTRAS', 'Impostos e Taxas', 'TAXA', 'taxaExtras'],
       ['MARKUP', 'Markup', 'MARKUP', 'moeda'],
       ['EXTRAS', '', 'EXTRAS', 'moeda']
     ];
@@ -3070,6 +3070,31 @@
               }
             }
 
+            if (
+              tipo === 'taxaExtras'
+            ) {
+
+              const taxa =
+                numeroComparacaoBR(
+                  cand.dados['TAXA']
+                ) || 0;
+
+              const extras =
+                numeroComparacaoBR(
+                  cand.dados['EXTRAS']
+                ) || 0;
+
+              valorSql =
+                formatarMoedaBR(
+                  taxa + extras
+                );
+
+              valorOrigem =
+                formatarMoedaBR(
+                  valorOrigem
+                );
+            }
+
             const comparar =
               campoOrigem !== '';
 
@@ -3141,7 +3166,8 @@
   ) {
 
     if (
-      tipo === 'moeda'
+      tipo === 'moeda' ||
+      tipo === 'taxaExtras'
     ) {
 
       const a =
@@ -3166,6 +3192,7 @@
     if (
       tipo === 'data'
     ) {
+
       return (
         normalizarDataConciliacao(
           valorA
@@ -3173,6 +3200,59 @@
         normalizarDataConciliacao(
           valorB
         )
+      );
+    }
+
+    if (
+      tipo === 'pagamento'
+    ) {
+
+      const origem =
+        normalizarTextoDashboard(
+          valorA
+        );
+
+      const recebimento =
+        normalizarTextoDashboard(
+          valorB
+        );
+
+      const origemCartao =
+        origem ===
+          normalizarTextoDashboard(
+            'Cartão de crédito'
+          ) ||
+        origem ===
+          normalizarTextoDashboard(
+            'Cartao de credito'
+          );
+
+      const recebimentosValidosCartao = [
+        'MAQUINETA',
+        'CONVENIO',
+        'CONVÊNIO',
+        'CARTÃO CONVENIO',
+        'CARTAO CONVENIO',
+        'CARTÃO CONVÊNIO',
+        'CARTAO CONVÊNIO'
+      ].map(
+        normalizarTextoDashboard
+      );
+
+      if (
+        origemCartao
+      ) {
+        return (
+          recebimentosValidosCartao
+            .includes(
+              recebimento
+            )
+        );
+      }
+
+      return (
+        origem ===
+        recebimento
       );
     }
 
@@ -3337,108 +3417,37 @@
 
 
   function formatarDataBR(valor) {
+    if (valor == null || valor === '') return '';
 
-    if (
-      valor == null ||
-      String(valor).trim() === ''
-    ) {
-      return '';
+    const texto = String(valor).trim();
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+      return texto;
     }
 
-    const texto =
-      String(valor).trim();
+    const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
 
-    /**************************************************
-     * DD/MM/AAAA
-     **************************************************/
-    let m =
-      texto.match(
-        /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s|$)/
-      );
+    if (iso) {
+      return iso[3] + '/' + iso[2] + '/' + iso[1];
+    }
 
-    if (m) {
+    const br = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+    if (br) {
       return (
-        String(m[1]).padStart(2, '0') +
-        '/' +
-        String(m[2]).padStart(2, '0') +
-        '/' +
-        m[3]
+        String(br[1]).padStart(2, '0') + '/' +
+        String(br[2]).padStart(2, '0') + '/' +
+        br[3]
       );
     }
 
-    /**************************************************
-     * AAAA-MM-DD / AAAA-MM-DDTHH...
-     **************************************************/
-    m =
-      texto.match(
-        /^(\d{4})-(\d{1,2})-(\d{1,2})(?:T|\s|$)/
-      );
-
-    if (m) {
-      return (
-        String(m[3]).padStart(2, '0') +
-        '/' +
-        String(m[2]).padStart(2, '0') +
-        '/' +
-        m[1]
-      );
-    }
-
-    /**************************************************
-     * AAAAMMDD
-     **************************************************/
-    m =
-      texto.match(
-        /^(\d{4})(\d{2})(\d{2})$/
-      );
-
-    if (m) {
-      return (
-        m[3] +
-        '/' +
-        m[2] +
-        '/' +
-        m[1]
-      );
-    }
-
-    /**************************************************
-     * Date textual retornado pelo Google/JS.
-     * Usa UTC quando o texto contém GMT/UTC/Z para
-     * impedir alteração de dia por fuso horário.
-     **************************************************/
-    const data =
-      new Date(texto);
+    const data = new Date(texto);
 
     if (!isNaN(data.getTime())) {
-
-      const usarUtc =
-        /GMT|UTC|Z$/i.test(texto) ||
-        /T\d{2}:\d{2}/.test(texto);
-
-      const dia =
-        usarUtc
-          ? data.getUTCDate()
-          : data.getDate();
-
-      const mes =
-        (
-          usarUtc
-            ? data.getUTCMonth()
-            : data.getMonth()
-        ) + 1;
-
-      const ano =
-        usarUtc
-          ? data.getUTCFullYear()
-          : data.getFullYear();
-
       return (
-        String(dia).padStart(2, '0') +
-        '/' +
-        String(mes).padStart(2, '0') +
-        '/' +
-        ano
+        String(data.getDate()).padStart(2, '0') + '/' +
+        String(data.getMonth() + 1).padStart(2, '0') + '/' +
+        data.getFullYear()
       );
     }
 
@@ -3446,10 +3455,13 @@
   }
 
 
+
   function normalizarDataConciliacao(valor) {
 
     const data =
-      formatarDataBR(valor);
+      formatarDataBR(
+        valor
+      );
 
     const m =
       String(data).match(
