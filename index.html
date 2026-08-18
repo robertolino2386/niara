@@ -2159,6 +2159,7 @@
    ****************************************************/
 
   let conciliacaoAtual = [];
+  let localizadorCandidatoAtual = '';
 
 
   async function carregarConciliacao() {
@@ -2408,6 +2409,9 @@
       return;
     }
 
+    localizadorCandidatoAtual =
+      item.localizador;
+
     const modal =
       document.getElementById(
         'modalCandidatos'
@@ -2620,9 +2624,7 @@
           '<button ' +
           'class="btn-small btn-blue" ' +
           'type="button" ' +
-          'onclick="selecionarCandidato(' +
-          JSON.stringify(item.localizador) +
-          ',' +
+          'onclick="selecionarCandidato(localizadorCandidatoAtual,' +
           cand.linha +
           ')">' +
           (selecionado
@@ -2948,6 +2950,8 @@
       .classList.remove(
         'active'
       );
+
+    localizadorCandidatoAtual = '';
   }
 
 
