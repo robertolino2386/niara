@@ -133,6 +133,11 @@
       color: #166534;
     }
 
+    .status-cancelado {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
     .comparacao-grid {
       display: grid;
       gap: 10px;
@@ -999,6 +1004,7 @@
           <option value="Conciliado">Conciliados</option>
           <option value="Seleção necessária" selected>Seleção necessária</option>
           <option value="Não encontrado">Não encontrados</option>
+          <option value="Cancelado">Cancelados</option>
         </select>
 
         <button
@@ -2505,7 +2511,9 @@
 
         if (
           meta.status ===
-          'Conciliado'
+          'Conciliado' ||
+          meta.status ===
+          'Cancelado'
         ) {
           label =
             expandido
@@ -2990,7 +2998,10 @@
           ) +
           '</div>';
 
-        if (!selecionado) {
+        if (
+          !selecionado &&
+          meta.status !== 'Cancelado'
+        ) {
 
           html +=
             '<button class="btn-small btn-blue" type="button" onclick="selecionarCandidatoInline(' +
@@ -3436,6 +3447,13 @@
         'status-conciliado';
     }
 
+    if (
+      status === 'Cancelado'
+    ) {
+      classe =
+        'status-cancelado';
+    }
+
     return (
       '<span class="status-badge ' +
       classe +
@@ -3613,6 +3631,281 @@
         normalizarTextoDashboard(h) ===
         alvo
     );
+  }
+
+
+
+  /****************************************************
+   * DASHBOARD
+   ****************************************************/
+
+  let dashboardDados = null;
+
+
+  async function carregarDashboard() {
+
+    const container =
+      document.getElementById('dashboardTabela');
+
+    const selectAno =
+      document.getElementById('dashboardAno');
+
+    container.className = 'loading';
+    container.textContent = 'Carregando dashboard...';
+
+    try {
+
+      const response =
+        await fetch(
+          API_URL + '?action=transacoes&termo=&status=',
+          {
+            method: 'GET',
+            redirect: 'follow'
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      const data =
+        JSON.parse(texto);
+
+      if (!data.ok) {
+        throw new Error(
+          data.mensagem ||
+          'Não foi possível carregar o dashboard.'
+        );
+      }
+
+      dashboardDados = data;
+
+      const idxData =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Data da reserva'
+        );
+
+      if (idxData === -1) {
+        throw new Error(
+          'A coluna Data da reserva não foi encontrada.'
+        );
+      }
+
+      const anos = new Set();
+
+      data.rows.forEach(row => {
+        const partes =
+          extrairPartesData(row[idxData]);
+
+        if (partes) {
+          anos.add(partes.ano);
+        }
+      });
+
+      const ordenados =
+        Array.from(anos)
+          .sort((a, b) => b - a);
+
+      const anterior =
+        selectAno.value;
+
+      selectAno.innerHTML = '';
+
+      ordenados.forEach(ano => {
+        const option =
+          document.createElement('option');
+
+        option.value = String(ano);
+        option.textContent = String(ano);
+
+        selectAno.appendChild(option);
+      });
+
+      if (
+        anterior &&
+        ordenados.includes(Number(anterior))
+      ) {
+        selectAno.value = anterior;
+      } else if (ordenados.length) {
+        selectAno.value =
+          String(ordenados[0]);
+      }
+
+      renderDashboard();
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      container.className = 'loading';
+      container.textContent =
+        'Erro: ' +
+        (
+          erro && erro.message
+            ? erro.message
+            : String(erro)
+        );
+    }
+  }
+
+
+  function renderDashboard() {
+
+    if (!dashboardDados) {
+      return;
+    }
+
+    const container =
+      document.getElementById('dashboardTabela');
+
+    const anoSelecionado =
+      Number(
+        document.getElementById('dashboardAno').value || 0
+      );
+
+    const idxData =
+      localizarIndiceCabecalho(
+        dashboardDados.headers,
+        'Data da reserva'
+      );
+
+    const idxSituacao =
+      localizarIndiceCabecalho(
+        dashboardDados.headers,
+        'Situação'
+      );
+
+    const meses = [
+      'JAN','FEV','MAR','ABR','MAI','JUN',
+      'JUL','AGO','SET','OUT','NOV','DEZ'
+    ];
+
+    const totais =
+      Array.from(
+        { length: 12 },
+        () => ({
+          total: 0,
+          conciliado: 0,
+          selecao: 0,
+          naoEncontrado: 0,
+          cancelado: 0
+        })
+      );
+
+    dashboardDados.rows.forEach(
+      (row, index) => {
+
+        const partes =
+          extrairPartesData(
+            row[idxData]
+          );
+
+        if (!partes) {
+          return;
+        }
+
+        if (
+          anoSelecionado &&
+          partes.ano !== anoSelecionado
+        ) {
+          return;
+        }
+
+        const item =
+          totais[partes.mes - 1];
+
+        item.total++;
+
+        const situacao =
+          idxSituacao !== -1
+            ? normalizarTextoDashboard(
+                row[idxSituacao]
+              )
+            : '';
+
+        const meta =
+          dashboardDados.meta &&
+          dashboardDados.meta[index]
+            ? dashboardDados.meta[index]
+            : null;
+
+        const status =
+          meta
+            ? meta.status
+            : '';
+
+        if (
+          situacao ===
+          normalizarTextoDashboard('Cancelado')
+        ) {
+          item.cancelado++;
+        } else if (
+          status === 'Conciliado'
+        ) {
+          item.conciliado++;
+        } else if (
+          status === 'Seleção necessária'
+        ) {
+          item.selecao++;
+        } else {
+          item.naoEncontrado++;
+        }
+      }
+    );
+
+    let tabela =
+      '<table class="dashboard-table">' +
+      '<thead><tr>' +
+      '<th>Mês</th>' +
+      '<th>Total</th>' +
+      '<th>Conciliados</th>' +
+      '<th>Seleção necessária</th>' +
+      '<th>Não encontrados</th>' +
+      '<th>Cancelados</th>' +
+      '<th>% Conciliado</th>' +
+      '</tr></thead><tbody>';
+
+    totais.forEach(
+      (item, index) => {
+
+        const conciliaveis =
+          item.total -
+          item.cancelado;
+
+        const percentual =
+          conciliaveis > 0
+            ? (
+                item.conciliado /
+                conciliaveis
+              ) * 100
+            : 0;
+
+        tabela +=
+          '<tr>' +
+          '<td>' + meses[index] + '</td>' +
+          '<td>' + item.total + '</td>' +
+          '<td>' + item.conciliado + '</td>' +
+          '<td>' + item.selecao + '</td>' +
+          '<td>' + item.naoEncontrado + '</td>' +
+          '<td>' + item.cancelado + '</td>' +
+          '<td>' +
+          percentual.toLocaleString(
+            'pt-BR',
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            }
+          ) +
+          '%</td>' +
+          '</tr>';
+      }
+    );
+
+    tabela +=
+      '</tbody></table>';
+
+    container.className = '';
+    container.innerHTML = tabela;
   }
 
 
