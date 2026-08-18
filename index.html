@@ -1009,12 +1009,25 @@
           Buscar / Atualizar
         </button>
 
+        <button
+          class="secondary"
+          type="button"
+          onclick="copiarLocalizadoresSql()">
+          ⧉ Copiar Localizadores SQL
+        </button>
+
         <span
           id="contador"
           class="badge">
           0 registros
         </span>
 
+      </div>
+
+      <div
+        id="copySqlStatus"
+        class="status"
+        style="margin-top:0; margin-bottom:14px;">
       </div>
 
       <div class="table-wrap">
@@ -1930,6 +1943,135 @@
   /****************************************************
    * MONTA TABELA
    ****************************************************/
+
+  async function copiarLocalizadoresSql() {
+
+    const status =
+      document.getElementById('copySqlStatus');
+
+    if (
+      !dadosListagemAtual ||
+      !dadosListagemAtual.rows ||
+      !dadosListagemAtual.rows.length
+    ) {
+
+      status.className = 'status error';
+      status.style.display = 'block';
+      status.textContent =
+        'Nenhuma transação disponível no filtro atual.';
+
+      return;
+    }
+
+    const indiceLocalizador =
+      localizarIndiceCabecalho(
+        dadosListagemAtual.headers,
+        'Localizador'
+      );
+
+    if (indiceLocalizador === -1) {
+
+      status.className = 'status error';
+      status.style.display = 'block';
+      status.textContent =
+        'A coluna Localizador não foi encontrada.';
+
+      return;
+    }
+
+    const localizadores =
+      dadosListagemAtual.rows
+        .map(
+          row =>
+            String(
+              row[indiceLocalizador] == null
+                ? ''
+                : row[indiceLocalizador]
+            ).trim()
+        )
+        .filter(valor => valor !== '');
+
+    const unicos =
+      Array.from(
+        new Set(localizadores)
+      );
+
+    if (!unicos.length) {
+
+      status.className = 'status error';
+      status.style.display = 'block';
+      status.textContent =
+        'Nenhum Localizador preenchido foi encontrado no filtro atual.';
+
+      return;
+    }
+
+    const textoSql =
+      unicos
+        .map(
+          valor =>
+            "'" +
+            valor.replace(/'/g, "''") +
+            "'"
+        )
+        .join(',\n');
+
+    try {
+
+      if (
+        navigator.clipboard &&
+        window.isSecureContext
+      ) {
+
+        await navigator.clipboard.writeText(
+          textoSql
+        );
+
+      } else {
+
+        const textarea =
+          document.createElement('textarea');
+
+        textarea.value = textoSql;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+
+        document.body.appendChild(textarea);
+
+        textarea.focus();
+        textarea.select();
+
+        document.execCommand('copy');
+
+        document.body.removeChild(textarea);
+      }
+
+      status.className = 'status ok';
+      status.style.display = 'block';
+      status.textContent =
+        unicos.length +
+        ' Localizador(es) copiado(s) para a área de transferência.';
+
+      setTimeout(
+        () => {
+          status.className = 'status';
+          status.style.display = 'none';
+          status.textContent = '';
+        },
+        3500
+      );
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      status.className = 'status error';
+      status.style.display = 'block';
+      status.textContent =
+        'Não foi possível copiar automaticamente.';
+    }
+  }
+
 
   function renderTabela(data) {
 
