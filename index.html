@@ -995,12 +995,10 @@
           class="search"
           style="flex:0 0 220px"
           onchange="carregarTransacoes()">
-          <option value="Pendentes" selected>Pendentes</option>
           <option value="">Todos os status</option>
-          <option value="Encontrado">Encontrado</option>
-          <option value="Não encontrado">Não encontrado</option>
-          <option value="Seleção necessária">Seleção necessária</option>
           <option value="Conciliado">Conciliados</option>
+          <option value="Seleção necessária" selected>Seleção necessária</option>
+          <option value="Não encontrado">Não encontrados</option>
         </select>
 
         <button
@@ -2500,7 +2498,9 @@
           'Seleção necessária'
         ) {
           label =
-            'Selecionar';
+            Number(meta.quantidadeSql || 0) > 1
+              ? 'Selecionar'
+              : 'Validar';
         }
 
         if (
@@ -2852,6 +2852,10 @@
         '&localizador=' +
         encodeURIComponent(
           meta.localizador
+        ) +
+        '&linhaTransacao=' +
+        encodeURIComponent(
+          meta.linhaTransacao || ''
         );
 
       const response =
@@ -3336,6 +3340,8 @@
                 'selecionarCandidato',
               localizador:
                 meta.localizador,
+              linhaTransacao:
+                meta.linhaTransacao,
               linhaBaseSql:
                 linhaBaseSql
             })
@@ -3389,18 +3395,21 @@
 
   function renderStatusConciliacao(status) {
 
-    let classe = 'status-encontrado';
+    let classe =
+      'status-selecao';
 
-    if (status === 'Não encontrado') {
-      classe = 'status-nao-encontrado';
+    if (
+      status === 'Não encontrado'
+    ) {
+      classe =
+        'status-nao-encontrado';
     }
 
-    if (status === 'Seleção necessária') {
-      classe = 'status-selecao';
-    }
-
-    if (status === 'Conciliado') {
-      classe = 'status-conciliado';
+    if (
+      status === 'Conciliado'
+    ) {
+      classe =
+        'status-conciliado';
     }
 
     return (
@@ -3411,8 +3420,6 @@
       '</span>'
     );
   }
-
-
 
 
   function formatarDataBR(valor) {
