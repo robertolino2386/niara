@@ -1848,6 +1848,201 @@
 
 
 
+
+  /****************************************************
+   * IMPORTAÇÃO DA BASE SQL
+   ****************************************************/
+
+  async function enviarBaseSql(form) {
+
+    const file =
+      document.getElementById(
+        'arquivoBaseSql'
+      ).files[0];
+
+    const btn =
+      document.getElementById(
+        'btnBaseSql'
+      );
+
+    const status =
+      document.getElementById(
+        'baseSqlStatus'
+      );
+
+    if (!file) {
+      return;
+    }
+
+    const nome =
+      file.name.toLowerCase();
+
+    if (
+      !nome.endsWith('.xlsx') &&
+      !nome.endsWith('.csv')
+    ) {
+
+      mostrarStatusBaseSql(
+        'error',
+        'Envie um arquivo XLSX ou CSV.'
+      );
+
+      return;
+    }
+
+    try {
+
+      btn.disabled = true;
+      btn.textContent =
+        'Importando...';
+
+      status.className =
+        'status';
+
+      status.style.display =
+        'block';
+
+      status.textContent =
+        'Lendo e enviando a Base SQL...';
+
+      const base64 =
+        await arquivoParaBase64(
+          file
+        );
+
+      status.textContent =
+        'Arquivo enviado. Atualizando a Base SQL...';
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+
+            redirect: 'follow',
+
+            headers: {
+              'Content-Type':
+                'text/plain;charset=utf-8'
+            },
+
+            body: JSON.stringify({
+              action:
+                'importarBaseSql',
+
+              nomeArquivo:
+                file.name,
+
+              base64:
+                base64
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let res;
+
+      try {
+
+        res =
+          JSON.parse(
+            texto
+          );
+
+      } catch (erro) {
+
+        console.error(
+          'Resposta recebida:',
+          texto
+        );
+
+        throw new Error(
+          'O Apps Script retornou uma resposta inválida.'
+        );
+      }
+
+      if (!res.ok) {
+
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível importar a Base SQL.'
+        );
+      }
+
+      form.reset();
+
+      mostrarStatusBaseSql(
+        'ok',
+
+        'Base SQL processada com sucesso!\n' +
+
+        'Arquivo: ' +
+        res.arquivo + '\n' +
+
+        'Registros lidos: ' +
+        (res.registrosLidos ?? 0) + '\n' +
+
+        'Linhas atualizadas: ' +
+        (res.atualizados ?? 0) + '\n' +
+
+        'Novas linhas adicionadas: ' +
+        (res.adicionados ?? 0) + '\n' +
+
+        'Linhas ignoradas: ' +
+        (res.ignorados ?? 0) + '\n' +
+
+        'Total atual na Base SQL: ' +
+        (res.totalBaseSql ?? 0)
+      );
+
+    } catch (erro) {
+
+      console.error(
+        erro
+      );
+
+      mostrarStatusBaseSql(
+        'error',
+
+        erro &&
+        erro.message
+          ? erro.message
+          : String(erro)
+      );
+
+    } finally {
+
+      btn.disabled = false;
+
+      btn.textContent =
+        'Importar Base SQL';
+    }
+  }
+
+
+  function mostrarStatusBaseSql(
+    tipo,
+    mensagem
+  ) {
+
+    const status =
+      document.getElementById(
+        'baseSqlStatus'
+      );
+
+    status.className =
+      'status ' + tipo;
+
+    status.style.display =
+      'block';
+
+    status.textContent =
+      mensagem;
+  }
+
+
   async function carregarTransacoes() {
 
     paginaAtualTransacoes = 1;
