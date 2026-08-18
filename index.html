@@ -1697,6 +1697,150 @@
   }
 
 
+
+
+  function formatarDataBR(valor) {
+    if (valor == null || valor === '') return '';
+
+    const texto = String(valor).trim();
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+      return texto;
+    }
+
+    const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+    if (iso) {
+      return iso[3] + '/' + iso[2] + '/' + iso[1];
+    }
+
+    const br = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+    if (br) {
+      return (
+        String(br[1]).padStart(2, '0') + '/' +
+        String(br[2]).padStart(2, '0') + '/' +
+        br[3]
+      );
+    }
+
+    const data = new Date(texto);
+
+    if (!isNaN(data.getTime())) {
+      return (
+        String(data.getDate()).padStart(2, '0') + '/' +
+        String(data.getMonth() + 1).padStart(2, '0') + '/' +
+        data.getFullYear()
+      );
+    }
+
+    return texto;
+  }
+
+
+
+  function formatarMoedaBR(valor) {
+    if (valor == null || String(valor).trim() === '') return '';
+
+    let texto = String(valor)
+      .trim()
+      .replace(/\s/g, '')
+      .replace(/^R\$/i, '');
+
+    let numero;
+
+    if (texto.includes(',')) {
+      numero = Number(
+        texto
+          .replace(/\./g, '')
+          .replace(',', '.')
+      );
+    } else {
+      numero = Number(texto);
+    }
+
+    if (!Number.isFinite(numero)) {
+      return String(valor);
+    }
+
+    return numero.toLocaleString(
+      'pt-BR',
+      {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    );
+  }
+
+
+
+  function normalizarTextoDashboard(valor) {
+    return String(valor == null ? '' : valor)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+
+
+  function extrairPartesData(valor) {
+    if (valor == null || String(valor).trim() === '') return null;
+
+    const texto = String(valor).trim();
+
+    let match = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+
+    if (match) {
+      const dia = Number(match[1]);
+      const mes = Number(match[2]);
+      const ano = Number(match[3]);
+
+      if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12) {
+        return { dia, mes, ano };
+      }
+    }
+
+    match = texto.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+
+    if (match) {
+      const ano = Number(match[1]);
+      const mes = Number(match[2]);
+      const dia = Number(match[3]);
+
+      if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12) {
+        return { dia, mes, ano };
+      }
+    }
+
+    const data = new Date(texto);
+
+    if (!isNaN(data.getTime())) {
+      return {
+        dia: data.getDate(),
+        mes: data.getMonth() + 1,
+        ano: data.getFullYear()
+      };
+    }
+
+    return null;
+  }
+
+
+
+  function localizarIndiceCabecalho(headers, cabecalho) {
+    const alvo = normalizarTextoDashboard(cabecalho);
+
+    return headers.findIndex(
+      h =>
+        normalizarTextoDashboard(h) ===
+        alvo
+    );
+  }
+
+
 </script>
 
 
