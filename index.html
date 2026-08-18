@@ -776,19 +776,11 @@
       onclick="trocarPagina('base-sql')">
       ⇩ Base SQL
     </button>
-
-    <button
-      class="nav-btn"
-      id="btn-conciliacao"
-      onclick="trocarPagina('conciliacao')">
-      ✓ Conciliação
-    </button>
-
-    <button
+<button
       class="nav-btn"
       id="btn-listar"
       onclick="trocarPagina('listar')">
-      ☰ Listar transações
+      ☰ Transações
     </button>
 
     <button
@@ -859,10 +851,10 @@
 
     <section id="page-listar" class="page">
 
-      <h1>Transações importadas</h1>
+      <h1>Transações</h1>
 
       <p class="subtitle">
-        Dados salvos no Google Sheets.
+        Consulte, edite, exclua e concilie os pedidos com a Base SQL na mesma tela.
       </p>
 
       <div class="toolbar">
@@ -871,8 +863,21 @@
           id="busca"
           class="search"
           type="search"
-          placeholder="Buscar por ID, hotel, cidade, situação..."
+          placeholder="Buscar por ID, localizador, hotel, cidade, situação..."
           onkeydown="if(event.key==='Enter') carregarTransacoes();">
+
+        <select
+          id="filtroStatusTransacoes"
+          class="search"
+          style="flex:0 0 220px"
+          onchange="carregarTransacoes()">
+          <option value="Pendentes" selected>Pendentes</option>
+          <option value="">Todos os status</option>
+          <option value="Encontrado">Encontrado</option>
+          <option value="Não encontrado">Não encontrado</option>
+          <option value="Seleção necessária">Seleção necessária</option>
+          <option value="Conciliado">Conciliados</option>
+        </select>
 
         <button
           class="primary"
@@ -947,61 +952,6 @@
           class="status">
         </div>
 
-      </div>
-
-    </section>
-
-
-    <section id="page-conciliacao" class="page">
-
-      <h1>Conciliação</h1>
-
-      <p class="subtitle">
-        Cruzamento entre <b>Localizador</b> da base importada e <b>CONFIRMACAO</b> da Base SQL.
-      </p>
-
-      <div class="toolbar">
-
-        <input
-          id="buscaConciliacao"
-          class="search"
-          type="search"
-          placeholder="Buscar por localizador, hotel ou status..."
-          onkeydown="if(event.key==='Enter') carregarConciliacao();">
-
-        <select
-          id="filtroStatusConciliacao"
-          class="search"
-          style="flex:0 0 220px"
-          onchange="carregarConciliacao()">
-          <option value="Pendentes" selected>Pendentes</option>
-          <option value="">Todos os status</option>
-          <option value="Encontrado">Encontrado</option>
-          <option value="Não encontrado">Não encontrado</option>
-          <option value="Seleção necessária">Seleção necessária</option>
-          <option value="Conciliado">Conciliados</option>
-        </select>
-
-        <button
-          class="primary"
-          onclick="carregarConciliacao()">
-          Atualizar
-        </button>
-
-        <span
-          id="contadorConciliacao"
-          class="badge">
-          0 registros
-        </span>
-
-      </div>
-
-      <div class="table-wrap">
-        <div
-          id="tabelaConciliacao"
-          class="loading">
-          Clique em “Atualizar” para carregar.
-        </div>
       </div>
 
     </section>
@@ -1095,10 +1045,6 @@
 
     if (nome === 'base-sql') {
       // A tela de upload não precisa carregar dados automaticamente.
-    }
-
-    if (nome === 'conciliacao') {
-      carregarConciliacao();
     }
 
     if (nome === 'dashboard') {
@@ -1331,26 +1277,31 @@
   async function carregarTransacoes() {
 
     const tabela =
-      document
-        .getElementById('tabela');
+      document.getElementById('tabela');
 
     tabela.className =
       'loading';
 
     tabela.textContent =
-      'Carregando transações...';
+      'Carregando transações e cruzando com a Base SQL...';
 
     const termo =
-      document
-        .getElementById('busca')
-        .value || '';
+      document.getElementById('busca').value || '';
+
+    const status =
+      document.getElementById(
+        'filtroStatusTransacoes'
+      ).value || '';
 
     try {
 
       const url =
         API_URL +
-        '?action=listar&termo=' +
-        encodeURIComponent(termo);
+        '?action=transacoes' +
+        '&termo=' +
+        encodeURIComponent(termo) +
+        '&status=' +
+        encodeURIComponent(status);
 
       const response =
         await fetch(
@@ -1388,6 +1339,9 @@
         );
       }
 
+      conciliacaoAtual =
+        data.meta || [];
+
       renderTabela(data);
 
     } catch (erro) {
@@ -1424,8 +1378,7 @@
         ' registro(s)';
 
     const container =
-      document
-        .getElementById('tabela');
+      document.getElementById('tabela');
 
     container.className = '';
 
@@ -1436,17 +1389,12 @@
 
       container.innerHTML =
         '<div class="loading">' +
-        'Nenhum registro encontrado.' +
+        'Nenhum registro encontrado para o filtro selecionado.' +
         '</div>';
 
       return;
     }
 
-    /*
-     * Apenas estas colunas serão exibidas na tela,
-     * na ordem definida abaixo.
-     * Os demais campos continuam salvos no Google Sheets.
-     */
     const COLUNAS_VISIVEIS = [
       'ID Reserva',
       'Localizador',
@@ -1470,51 +1418,57 @@
     ];
 
     function normalizarCabecalho(valor) {
-      return String(valor == null ? '' : valor)
+      return String(
+        valor == null ? '' : valor
+      )
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+        .replace(
+          /[\u0300-\u036f]/g,
+          ''
+        )
         .trim()
         .toLowerCase();
     }
 
-    const mapaHeaders = new Map();
+    const mapaHeaders =
+      new Map();
 
-    data.headers.forEach((header, index) => {
-      mapaHeaders.set(
-        normalizarCabecalho(header),
-        index
-      );
-    });
+    data.headers.forEach(
+      (header, index) => {
 
-    const colunasEncontradas = COLUNAS_VISIVEIS
-      .map(nome => ({
-        nome,
-        index: mapaHeaders.get(
-          normalizarCabecalho(nome)
+        mapaHeaders.set(
+          normalizarCabecalho(header),
+          index
+        );
+      }
+    );
+
+    const colunasEncontradas =
+      COLUNAS_VISIVEIS
+        .map(
+          nome => ({
+            nome,
+            index:
+              mapaHeaders.get(
+                normalizarCabecalho(nome)
+              )
+          })
         )
-      }))
-      .filter(coluna =>
-        coluna.index !== undefined
-      );
+        .filter(
+          coluna =>
+            coluna.index !== undefined
+        );
 
-    colunasListagemAtual = colunasEncontradas;
-
-    if (!colunasEncontradas.length) {
-
-      container.innerHTML =
-        '<div class="loading">' +
-        'Nenhuma das colunas configuradas foi encontrada na planilha.' +
-        '</div>';
-
-      return;
-    }
+    colunasListagemAtual =
+      colunasEncontradas;
 
     let html =
       '<table>' +
       '<thead>' +
-      '<tr>';
-
-    html += '<th>Ações</th>';
+      '<tr>' +
+      '<th>Ações</th>' +
+      '<th>Status Conciliação</th>' +
+      '<th>Ocorrências SQL</th>';
 
     colunasEncontradas.forEach(
       coluna => {
@@ -1534,22 +1488,110 @@
     data.rows.forEach(
       (row, rowIndex) => {
 
+        const meta =
+          data.meta &&
+          data.meta[rowIndex]
+            ? data.meta[rowIndex]
+            : {
+                status: 'Não encontrado',
+                quantidadeSql: 0
+              };
+
         html +=
-          '<tr id="transacao-row-' + rowIndex + '">';
+          '<tr id="transacao-row-' +
+          rowIndex +
+          '">';
 
         html +=
           '<td>' +
-            '<div class="acoes-linha">' +
-              '<button class="acao-btn acao-editar" type="button" title="Editar" aria-label="Editar" onclick="editarTransacao(' + rowIndex + ')">✎</button>' +
-              '<button class="acao-btn acao-excluir" type="button" title="Excluir" aria-label="Excluir" onclick="excluirTransacao(' + rowIndex + ')">✕</button>' +
-              '<button class="acao-btn acao-salvar" type="button" title="Salvar" aria-label="Salvar" onclick="salvarTransacao(' + rowIndex + ')">✓</button>' +
-            '</div>' +
+          '<div class="acoes-linha">' +
+
+          '<button ' +
+          'class="acao-btn acao-editar" ' +
+          'type="button" ' +
+          'title="Editar" ' +
+          'aria-label="Editar" ' +
+          'onclick="editarTransacao(' +
+          rowIndex +
+          ')">✎</button>' +
+
+          '<button ' +
+          'class="acao-btn acao-excluir" ' +
+          'type="button" ' +
+          'title="Excluir" ' +
+          'aria-label="Excluir" ' +
+          'onclick="excluirTransacao(' +
+          rowIndex +
+          ')">✕</button>' +
+
+          '<button ' +
+          'class="acao-btn acao-salvar" ' +
+          'type="button" ' +
+          'title="Salvar / Editar" ' +
+          'aria-label="Salvar / Editar" ' +
+          'onclick="salvarTransacao(' +
+          rowIndex +
+          ')">✓</button>';
+
+        if (
+          Number(
+            meta.quantidadeSql || 0
+          ) > 0
+        ) {
+
+          let label =
+            'Conciliar';
+
+          if (
+            meta.status ===
+            'Seleção necessária'
+          ) {
+            label =
+              'Selecionar';
+          }
+
+          if (
+            meta.status ===
+            'Conciliado'
+          ) {
+            label =
+              'Ver';
+          }
+
+          html +=
+            '<button ' +
+            'class="btn-small btn-blue" ' +
+            'type="button" ' +
+            'onclick="abrirCandidatos(' +
+            rowIndex +
+            ')">' +
+            escapeHtml(label) +
+            '</button>';
+        }
+
+        html +=
+          '</div>' +
+          '</td>';
+
+        html +=
+          '<td>' +
+          renderStatusConciliacao(
+            meta.status
+          ) +
+          '</td>';
+
+        html +=
+          '<td>' +
+          escapeHtml(
+            meta.quantidadeSql || 0
+          ) +
           '</td>';
 
         colunasEncontradas.forEach(
           coluna => {
 
-            const valorOriginal = row[coluna.index];
+            const valorOriginal =
+              row[coluna.index];
 
             const colunasData = [
               'Data de check-in',
@@ -1564,19 +1606,36 @@
               'Comissão a receber'
             ];
 
-            let valorExibido = valorOriginal;
+            let valorExibido =
+              valorOriginal;
 
-            if (colunasData.includes(coluna.nome)) {
-              valorExibido = formatarDataBR(valorOriginal);
+            if (
+              colunasData.includes(
+                coluna.nome
+              )
+            ) {
+              valorExibido =
+                formatarDataBR(
+                  valorOriginal
+                );
             }
 
-            if (colunasMoeda.includes(coluna.nome)) {
-              valorExibido = formatarMoedaBR(valorOriginal);
+            if (
+              colunasMoeda.includes(
+                coluna.nome
+              )
+            ) {
+              valorExibido =
+                formatarMoedaBR(
+                  valorOriginal
+                );
             }
 
             html +=
               '<td>' +
-              escapeHtml(valorExibido) +
+              escapeHtml(
+                valorExibido
+              ) +
               '</td>';
           }
         );
@@ -1591,1907 +1650,6 @@
 
     container.innerHTML =
       html;
-  }
-
-
-  /****************************************************
-   * AÇÕES DA TABELA
-   ****************************************************/
-
-  let dadosListagemAtual = null;
-  let colunasListagemAtual = [];
-  let edicaoAtual = null;
-  let exclusaoAtual = null;
-
-  const CAMPOS_EDITAVEIS = [
-    'ID Reserva',
-    'Localizador',
-    'ID no fornecedor',
-    'Hotel',
-    'Cidade',
-    'Data de check-in',
-    'Data de check-out',
-    'Data da reserva',
-    'Situação',
-    'Hotel Net (sem taxas)',
-    'Impostos e Taxas',
-    'Markup',
-    'Pagto ao fornecedor',
-    'Cartão Fornecedor',
-    'Pax',
-    'Comissão a receber (%)',
-    'Comissão a receber',
-    'Tipo de pagamento',
-    'CC Cod.Aut. (recebido)'
-  ];
-
-  function editarTransacao(rowIndex) {
-
-    if (!dadosListagemAtual) {
-      return;
-    }
-
-    const row = dadosListagemAtual.rows[rowIndex];
-
-    if (!row) {
-      return;
-    }
-
-    const indiceId = localizarIndiceCabecalho(
-      dadosListagemAtual.headers,
-      'ID Reserva'
-    );
-
-    if (indiceId === -1) {
-      alert('Não foi possível localizar o ID da Reserva.');
-      return;
-    }
-
-    const idOriginal = row[indiceId];
-
-    edicaoAtual = {
-      rowIndex: rowIndex,
-      idOriginal: idOriginal
-    };
-
-    const container =
-      document.getElementById('formEditarCampos');
-
-    container.innerHTML = '';
-
-    CAMPOS_EDITAVEIS.forEach(nomeCampo => {
-
-      const indice =
-        localizarIndiceCabecalho(
-          dadosListagemAtual.headers,
-          nomeCampo
-        );
-
-      if (indice === -1) {
-        return;
-      }
-
-      const valor = row[indice] == null ? '' : row[indice];
-
-      const wrapper =
-        document.createElement('div');
-
-      wrapper.className = 'campo-form';
-
-      const label =
-        document.createElement('label');
-
-      label.textContent = nomeCampo;
-
-      const input =
-        document.createElement('input');
-
-      input.type = 'text';
-      input.dataset.campo = nomeCampo;
-      input.value = prepararValorParaEdicao(nomeCampo, valor);
-
-      wrapper.appendChild(label);
-      wrapper.appendChild(input);
-      container.appendChild(wrapper);
-    });
-
-    const status =
-      document.getElementById('editarStatus');
-
-    status.className = 'modal-status';
-    status.textContent = '';
-
-    document
-      .getElementById('modalEditar')
-      .classList.add('active');
-  }
-
-
-  function salvarTransacao(rowIndex) {
-    editarTransacao(rowIndex);
-  }
-
-
-  function prepararValorParaEdicao(campo, valor) {
-
-    const camposData = [
-      'Data de check-in',
-      'Data de check-out',
-      'Data da reserva'
-    ];
-
-    const camposMoeda = [
-      'Hotel Net (sem taxas)',
-      'Impostos e Taxas',
-      'Markup',
-      'Comissão a receber'
-    ];
-
-    if (camposData.includes(campo)) {
-      return formatarDataBR(valor);
-    }
-
-    if (camposMoeda.includes(campo)) {
-      const formatado = formatarMoedaBR(valor);
-      return String(formatado).replace(/^R\$\s?/, '');
-    }
-
-    return String(valor == null ? '' : valor);
-  }
-
-
-  async function salvarEdicao() {
-
-    if (!edicaoAtual) {
-      return;
-    }
-
-    const btn =
-      document.getElementById('btnSalvarEdicao');
-
-    const status =
-      document.getElementById('editarStatus');
-
-    const atualizacoes = {};
-
-    document
-      .querySelectorAll('#formEditarCampos [data-campo]')
-      .forEach(input => {
-
-        atualizacoes[input.dataset.campo] =
-          input.value;
-      });
-
-    try {
-
-      btn.disabled = true;
-      btn.textContent = 'Salvando...';
-
-      status.className = 'modal-status';
-      status.style.display = 'block';
-      status.textContent = 'Atualizando a linha na planilha...';
-
-      const response =
-        await fetch(
-          API_URL,
-          {
-            method: 'POST',
-            redirect: 'follow',
-            headers: {
-              'Content-Type': 'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify({
-              action: 'atualizar',
-              idOriginal: edicaoAtual.idOriginal,
-              atualizacoes: atualizacoes
-            })
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      let res;
-
-      try {
-        res = JSON.parse(texto);
-      } catch (erro) {
-        console.error('Resposta recebida:', texto);
-        throw new Error('O Apps Script retornou uma resposta inválida.');
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          res.mensagem ||
-          'Não foi possível atualizar a transação.'
-        );
-      }
-
-      status.className = 'modal-status ok';
-      status.textContent =
-        'Alterações salvas na mesma linha da planilha.';
-
-      await carregarTransacoes();
-
-      if (
-        document
-          .getElementById('page-dashboard')
-          .classList.contains('active')
-      ) {
-        await carregarDashboard();
-      }
-
-      setTimeout(() => {
-        fecharModalEditar();
-      }, 700);
-
-    } catch (erro) {
-
-      console.error(erro);
-
-      status.className = 'modal-status error';
-      status.textContent =
-        erro && erro.message
-          ? erro.message
-          : String(erro);
-
-    } finally {
-
-      btn.disabled = false;
-      btn.textContent = '✓ Salvar alterações';
-    }
-  }
-
-
-  function excluirTransacao(rowIndex) {
-
-    if (!dadosListagemAtual) {
-      return;
-    }
-
-    const row =
-      dadosListagemAtual.rows[rowIndex];
-
-    if (!row) {
-      return;
-    }
-
-    const indiceId =
-      localizarIndiceCabecalho(
-        dadosListagemAtual.headers,
-        'ID Reserva'
-      );
-
-    const indiceHotel =
-      localizarIndiceCabecalho(
-        dadosListagemAtual.headers,
-        'Hotel'
-      );
-
-    if (indiceId === -1) {
-      alert('Não foi possível localizar o ID da Reserva.');
-      return;
-    }
-
-    const idReserva = row[indiceId];
-    const hotel =
-      indiceHotel !== -1
-        ? row[indiceHotel]
-        : '';
-
-    exclusaoAtual = {
-      rowIndex: rowIndex,
-      idReserva: idReserva
-    };
-
-    document
-      .getElementById('textoConfirmacaoExclusao')
-      .textContent =
-        'Reserva: ' +
-        idReserva +
-        (hotel ? ' • ' + hotel : '');
-
-    const status =
-      document.getElementById('excluirStatus');
-
-    status.className = 'modal-status';
-    status.textContent = '';
-
-    document
-      .getElementById('modalExcluir')
-      .classList.add('active');
-  }
-
-
-  async function confirmarExclusao() {
-
-    if (!exclusaoAtual) {
-      return;
-    }
-
-    const btn =
-      document.getElementById('btnConfirmarExclusao');
-
-    const status =
-      document.getElementById('excluirStatus');
-
-    try {
-
-      btn.disabled = true;
-      btn.textContent = 'Excluindo...';
-
-      status.className = 'modal-status';
-      status.style.display = 'block';
-      status.textContent =
-        'Removendo a linha da planilha...';
-
-      const response =
-        await fetch(
-          API_URL,
-          {
-            method: 'POST',
-            redirect: 'follow',
-            headers: {
-              'Content-Type': 'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify({
-              action: 'excluir',
-              idReserva: exclusaoAtual.idReserva
-            })
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      let res;
-
-      try {
-        res = JSON.parse(texto);
-      } catch (erro) {
-        console.error('Resposta recebida:', texto);
-        throw new Error('O Apps Script retornou uma resposta inválida.');
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          res.mensagem ||
-          'Não foi possível excluir a transação.'
-        );
-      }
-
-      status.className = 'modal-status ok';
-      status.textContent =
-        'Transação excluída da planilha.';
-
-      await carregarTransacoes();
-
-      setTimeout(() => {
-        fecharModalExcluir();
-      }, 650);
-
-    } catch (erro) {
-
-      console.error(erro);
-
-      status.className = 'modal-status error';
-      status.textContent =
-        erro && erro.message
-          ? erro.message
-          : String(erro);
-
-    } finally {
-
-      btn.disabled = false;
-      btn.textContent = '✕ Excluir';
-    }
-  }
-
-
-  function fecharModalEditar() {
-    document
-      .getElementById('modalEditar')
-      .classList.remove('active');
-
-    edicaoAtual = null;
-  }
-
-
-  function fecharModalExcluir() {
-    document
-      .getElementById('modalExcluir')
-      .classList.remove('active');
-
-    exclusaoAtual = null;
-  }
-
-
-  function fecharModalAoFundo(event, idModal) {
-
-    if (event.target.id === idModal) {
-
-      if (idModal === 'modalEditar') {
-        fecharModalEditar();
-      }
-
-      if (idModal === 'modalExcluir') {
-        fecharModalExcluir();
-      }
-    }
-  }
-
-
-  /****************************************************
-   * IMPORTAÇÃO DA BASE SQL
-   ****************************************************/
-
-  async function enviarBaseSql(form) {
-
-    const file =
-      document.getElementById('arquivoBaseSql').files[0];
-
-    const btn =
-      document.getElementById('btnBaseSql');
-
-    const status =
-      document.getElementById('baseSqlStatus');
-
-    if (!file) {
-      return;
-    }
-
-    const nome =
-      file.name.toLowerCase();
-
-    if (
-      !nome.endsWith('.xlsx') &&
-      !nome.endsWith('.csv')
-    ) {
-      mostrarStatusBaseSql(
-        'error',
-        'Envie um arquivo XLSX ou CSV.'
-      );
-      return;
-    }
-
-    try {
-
-      btn.disabled = true;
-      btn.textContent = 'Importando...';
-
-      status.className = 'status';
-      status.style.display = 'block';
-      status.textContent =
-        'Lendo e enviando a Base SQL...';
-
-      const base64 =
-        await arquivoParaBase64(file);
-
-      const response =
-        await fetch(
-          API_URL,
-          {
-            method: 'POST',
-            redirect: 'follow',
-            headers: {
-              'Content-Type':
-                'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify({
-              action: 'importarBaseSql',
-              nomeArquivo: file.name,
-              base64: base64
-            })
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      let res;
-
-      try {
-        res = JSON.parse(texto);
-      } catch (erro) {
-        console.error('Resposta recebida:', texto);
-        throw new Error(
-          'O Apps Script retornou uma resposta inválida.'
-        );
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          res.mensagem ||
-          'Não foi possível importar a Base SQL.'
-        );
-      }
-
-      form.reset();
-
-      mostrarStatusBaseSql(
-        'ok',
-        'Base SQL processada com sucesso!\n' +
-        'Arquivo: ' + res.arquivo + '\n' +
-        'Registros lidos: ' + res.registrosLidos + '\n' +
-        'Linhas atualizadas: ' + res.atualizados + '\n' +
-        'Novas linhas adicionadas: ' + res.adicionados + '\n' +
-        'Linhas ignoradas: ' + res.ignorados + '\n' +
-        'Total atual na Base SQL: ' + res.totalBaseSql
-      );
-
-    } catch (erro) {
-
-      console.error(erro);
-
-      mostrarStatusBaseSql(
-        'error',
-        erro && erro.message
-          ? erro.message
-          : String(erro)
-      );
-
-    } finally {
-
-      btn.disabled = false;
-      btn.textContent = 'Importar Base SQL';
-    }
-  }
-
-
-  function mostrarStatusBaseSql(tipo, mensagem) {
-
-    const status =
-      document.getElementById('baseSqlStatus');
-
-    status.className =
-      'status ' + tipo;
-
-    status.style.display =
-      'block';
-
-    status.textContent =
-      mensagem;
-  }
-
-
-  /****************************************************
-   * CONCILIAÇÃO
-   ****************************************************/
-
-  let conciliacaoAtual = [];
-  let localizadorCandidatoAtual = '';
-
-
-  async function carregarConciliacao() {
-
-    const container =
-      document.getElementById(
-        'tabelaConciliacao'
-      );
-
-    container.className = 'loading';
-    container.textContent =
-      'Cruzando Localizador com CONFIRMACAO...';
-
-    const termo =
-      document.getElementById(
-        'buscaConciliacao'
-      ).value || '';
-
-    const status =
-      document.getElementById(
-        'filtroStatusConciliacao'
-      ).value || '';
-
-    try {
-
-      const url =
-        API_URL +
-        '?action=conciliacao' +
-        '&termo=' +
-        encodeURIComponent(termo) +
-        '&status=' +
-        encodeURIComponent(status);
-
-      const response =
-        await fetch(
-          url,
-          {
-            method: 'GET',
-            redirect: 'follow'
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      let data;
-
-      try {
-        data = JSON.parse(texto);
-      } catch (erro) {
-        console.error('Resposta recebida:', texto);
-        throw new Error(
-          'O Apps Script retornou uma resposta inválida.'
-        );
-      }
-
-      if (!data.ok) {
-        throw new Error(
-          data.mensagem ||
-          'Não foi possível carregar a conciliação.'
-        );
-      }
-
-      conciliacaoAtual =
-        data.rows || [];
-
-      renderConciliacao(data);
-
-    } catch (erro) {
-
-      console.error(erro);
-
-      container.className =
-        'loading';
-
-      container.textContent =
-        'Erro: ' +
-        (
-          erro && erro.message
-            ? erro.message
-            : String(erro)
-        );
-    }
-  }
-
-
-  function renderConciliacao(data) {
-
-    document
-      .getElementById('contadorConciliacao')
-      .textContent =
-        data.total +
-        ' registro(s)';
-
-    const container =
-      document.getElementById(
-        'tabelaConciliacao'
-      );
-
-    container.className = '';
-
-    if (!data.rows || !data.rows.length) {
-
-      container.innerHTML =
-        '<div class="loading">' +
-        'Nenhum registro encontrado.' +
-        '</div>';
-
-      return;
-    }
-
-    let html =
-      '<table>' +
-      '<thead>' +
-      '<tr>' +
-      '<th>Ações</th>' +
-      '<th>Localizador</th>' +
-      '<th>Hotel</th>' +
-      '<th>Data da reserva</th>' +
-      '<th>Status</th>' +
-      '<th>Ocorrências SQL</th>' +
-      '</tr>' +
-      '</thead>' +
-      '<tbody>';
-
-    data.rows.forEach(
-      (item, index) => {
-
-        html += '<tr>';
-
-        html +=
-          '<td>' +
-          '<div class="conciliacao-acoes">';
-
-        if (item.quantidadeSql > 0) {
-
-          const label =
-            item.status === 'Conciliado'
-              ? 'Ver'
-              : (
-                  item.quantidadeSql > 1
-                    ? 'Selecionar'
-                    : 'Usar'
-                );
-
-          html +=
-            '<button ' +
-            'class="btn-small btn-blue" ' +
-            'type="button" ' +
-            'onclick="abrirCandidatos(' + index + ')">' +
-            escapeHtml(label) +
-            '</button>';
-        }
-
-        html +=
-          '</div>' +
-          '</td>';
-
-        html +=
-          '<td>' +
-          escapeHtml(item.localizador) +
-          '</td>';
-
-        html +=
-          '<td>' +
-          escapeHtml(item.hotel) +
-          '</td>';
-
-        html +=
-          '<td>' +
-          escapeHtml(
-            formatarDataBR(
-              item.dataReserva
-            )
-          ) +
-          '</td>';
-
-        html +=
-          '<td>' +
-          renderStatusConciliacao(
-            item.status
-          ) +
-          '</td>';
-
-        html +=
-          '<td>' +
-          escapeHtml(
-            item.quantidadeSql
-          ) +
-          '</td>';
-
-        html += '</tr>';
-      }
-    );
-
-    html +=
-      '</tbody>' +
-      '</table>';
-
-    container.innerHTML =
-      html;
-  }
-
-
-  function renderStatusConciliacao(status) {
-
-    let classe =
-      'status-encontrado';
-
-    if (
-      status === 'Não encontrado'
-    ) {
-      classe =
-        'status-nao-encontrado';
-    }
-
-    if (
-      status === 'Seleção necessária'
-    ) {
-      classe =
-        'status-selecao';
-    }
-
-    if (
-      status === 'Conciliado'
-    ) {
-      classe =
-        'status-conciliado';
-    }
-
-    return (
-      '<span class="status-badge ' +
-      classe +
-      '">' +
-      escapeHtml(status) +
-      '</span>'
-    );
-  }
-
-
-  async function abrirCandidatos(index) {
-
-    const item =
-      conciliacaoAtual[index];
-
-    if (!item) {
-      return;
-    }
-
-    localizadorCandidatoAtual =
-      item.localizador;
-
-    const modal =
-      document.getElementById(
-        'modalCandidatos'
-      );
-
-    const lista =
-      document.getElementById(
-        'listaCandidatos'
-      );
-
-    const resumo =
-      document.getElementById(
-        'resumoConciliacaoOrigem'
-      );
-
-    const status =
-      document.getElementById(
-        'candidatosStatus'
-      );
-
-    resumo.innerHTML =
-      '<div class="card" style="padding:14px">' +
-      '<b>Pedido selecionado</b><br>' +
-      'Localizador: ' +
-      escapeHtml(item.localizador) +
-      (item.hotel
-        ? '<br>Hotel: ' +
-          escapeHtml(item.hotel)
-        : '') +
-      '</div>';
-
-    lista.innerHTML =
-      '<div class="loading">' +
-      'Carregando registros da Base SQL...' +
-      '</div>';
-
-    status.className =
-      'modal-status';
-
-    status.textContent = '';
-
-    modal.classList.add('active');
-
-    try {
-
-      const url =
-        API_URL +
-        '?action=candidatos' +
-        '&localizador=' +
-        encodeURIComponent(
-          item.localizador
-        );
-
-      const response =
-        await fetch(
-          url,
-          {
-            method: 'GET',
-            redirect: 'follow'
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      const data =
-        JSON.parse(texto);
-
-      if (!data.ok) {
-        throw new Error(
-          data.mensagem ||
-          'Não foi possível carregar os candidatos.'
-        );
-      }
-
-      renderCandidatos(
-        item,
-        data
-      );
-
-    } catch (erro) {
-
-      lista.innerHTML = '';
-
-      status.className =
-        'modal-status error';
-
-      status.textContent =
-        erro && erro.message
-          ? erro.message
-          : String(erro);
-    }
-  }
-
-
-  function renderCandidatos(item, data) {
-
-    const lista =
-      document.getElementById(
-        'listaCandidatos'
-      );
-
-    if (
-      !data.candidatos ||
-      !data.candidatos.length
-    ) {
-
-      lista.innerHTML =
-        '<div class="loading">' +
-        'Nenhum registro encontrado.' +
-        '</div>';
-
-      return;
-    }
-
-    const origem =
-      data.origem || {};
-
-    const linhaSelecionada =
-      Number(
-        data.linhaBaseSqlSelecionada || 0
-      );
-
-    const mapeamento = [
-      {
-        label: 'Localizador',
-        origem: 'Localizador',
-        sql: 'CONFIRMACAO',
-        tipo: 'texto'
-      },
-      {
-        label: 'Hotel',
-        origem: 'Hotel',
-        sql: 'HOTEL',
-        tipo: 'texto'
-      },
-      {
-        label: 'Pax',
-        origem: 'Pax',
-        sql: 'PASSAGEIRONAOCAD',
-        tipo: 'texto'
-      },
-      {
-        label: 'Data de check-in',
-        origem: 'Data de check-in',
-        sql: 'BB_HOTEL_ENTRADA',
-        tipo: 'data'
-      },
-      {
-        label: 'Data de check-out',
-        origem: 'Data de check-out',
-        sql: 'BB_HOTEL_SAIDA',
-        tipo: 'data'
-      },
-      {
-        label: 'Hotel Net (sem taxas)',
-        origem: 'Hotel Net (sem taxas)',
-        sql: 'TARIFA',
-        tipo: 'moeda'
-      },
-      {
-        label: 'Impostos e Taxas',
-        origem: 'Impostos e Taxas',
-        sql: 'TAXA',
-        tipo: 'moeda'
-      },
-      {
-        label: 'Markup',
-        origem: 'Markup',
-        sql: 'MARKUP',
-        tipo: 'moeda'
-      },
-      {
-        label: 'Tipo de pagamento',
-        origem: 'Tipo de pagamento',
-        sql: 'RECEBIMENTO',
-        tipo: 'texto'
-      },
-      {
-        label: 'Autorização',
-        origem: 'CC Cod.Aut. (recebido)',
-        sql: 'AUTORIZACAOCARTAO',
-        tipo: 'texto'
-      }
-    ];
-
-    let html = '';
-
-    data.candidatos.forEach(
-      (cand, idx) => {
-
-        const selecionado =
-          linhaSelecionada ===
-          Number(cand.linha);
-
-        html +=
-          '<div class="candidate-card">';
-
-        html +=
-          '<div class="candidate-card-header">' +
-          '<div class="candidate-card-title">' +
-          'Opção ' +
-          (idx + 1) +
-          (selecionado
-            ? ' • Conciliada'
-            : '') +
-          '</div>';
-
-        html +=
-          '<button ' +
-          'class="btn-small btn-blue" ' +
-          'type="button" ' +
-          'onclick="selecionarCandidato(localizadorCandidatoAtual,' +
-          cand.linha +
-          ')">' +
-          (selecionado
-            ? 'Conciliado ✓'
-            : 'Selecionar e conciliar') +
-          '</button>' +
-          '</div>';
-
-        html +=
-          '<div style="padding:14px">';
-
-        html +=
-          '<div class="comparacao-header">' +
-          '<div>Campo</div>' +
-          '<div>Base importada</div>' +
-          '<div>Base SQL</div>' +
-          '</div>';
-
-        html +=
-          '<div class="comparacao-grid">';
-
-        mapeamento.forEach(
-          mapa => {
-
-            let valorOrigem =
-              origem[
-                mapa.origem
-              ];
-
-            let valorSql =
-              cand.dados[
-                mapa.sql
-              ];
-
-            if (
-              valorOrigem ===
-              undefined
-            ) {
-              valorOrigem = '';
-            }
-
-            if (
-              valorSql ===
-              undefined
-            ) {
-              valorSql = '';
-            }
-
-            if (
-              mapa.tipo ===
-              'data'
-            ) {
-              valorOrigem =
-                formatarDataBR(
-                  valorOrigem
-                );
-
-              valorSql =
-                formatarDataBR(
-                  valorSql
-                );
-            }
-
-            if (
-              mapa.tipo ===
-              'moeda'
-            ) {
-              valorOrigem =
-                formatarMoedaBR(
-                  valorOrigem
-                );
-
-              valorSql =
-                formatarMoedaBR(
-                  valorSql
-                );
-            }
-
-            const iguais =
-              compararValoresConciliacao(
-                mapa.tipo,
-                valorOrigem,
-                valorSql
-              );
-
-            html +=
-              '<div class="comparacao-row">' +
-              '<div class="comparacao-label">' +
-              escapeHtml(
-                mapa.label
-              ) +
-              '</div>' +
-              '<div class="comparacao-origem ' +
-              (iguais
-                ? 'comparacao-igual'
-                : '') +
-              '">' +
-              escapeHtml(
-                valorOrigem
-              ) +
-              '</div>' +
-              '<div class="comparacao-sql ' +
-              (iguais
-                ? 'comparacao-igual'
-                : '') +
-              '">' +
-              escapeHtml(
-                valorSql
-              ) +
-              '</div>' +
-              '</div>';
-          }
-        );
-
-        html +=
-          '</div>' +
-          '</div>' +
-          '</div>';
-      }
-    );
-
-    lista.innerHTML =
-      html;
-  }
-
-
-  function compararValoresConciliacao(
-    tipo,
-    valorA,
-    valorB
-  ) {
-
-    if (
-      tipo === 'moeda'
-    ) {
-
-      const numA =
-        numeroComparacaoBR(
-          valorA
-        );
-
-      const numB =
-        numeroComparacaoBR(
-          valorB
-        );
-
-      if (
-        numA === null ||
-        numB === null
-      ) {
-        return false;
-      }
-
-      return (
-        Math.abs(
-          numA - numB
-        ) < 0.01
-      );
-    }
-
-    if (
-      tipo === 'data'
-    ) {
-
-      return (
-        normalizarTextoDashboard(
-          formatarDataBR(
-            valorA
-          )
-        ) ===
-        normalizarTextoDashboard(
-          formatarDataBR(
-            valorB
-          )
-        )
-      );
-    }
-
-    return (
-      normalizarTextoDashboard(
-        valorA
-      ) ===
-      normalizarTextoDashboard(
-        valorB
-      )
-    );
-  }
-
-
-  function numeroComparacaoBR(
-    valor
-  ) {
-
-    if (
-      valor == null ||
-      String(valor).trim() === ''
-    ) {
-      return null;
-    }
-
-    let texto =
-      String(valor)
-        .trim()
-        .replace(/\s/g, '')
-        .replace(/^R\$/i, '');
-
-    if (
-      texto.includes(',')
-    ) {
-      texto =
-        texto
-          .replace(/\./g, '')
-          .replace(',', '.');
-    }
-
-    const numero =
-      Number(texto);
-
-    return Number.isFinite(
-      numero
-    )
-      ? numero
-      : null;
-  }
-
-
-  async function selecionarCandidato(
-    localizador,
-    linhaBaseSql
-  ) {
-
-    const status =
-      document.getElementById(
-        'candidatosStatus'
-      );
-
-    try {
-
-      status.className =
-        'modal-status';
-
-      status.style.display =
-        'block';
-
-      status.textContent =
-        'Salvando seleção...';
-
-      const response =
-        await fetch(
-          API_URL,
-          {
-            method: 'POST',
-            redirect: 'follow',
-            headers: {
-              'Content-Type':
-                'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify({
-              action:
-                'selecionarCandidato',
-              localizador:
-                localizador,
-              linhaBaseSql:
-                linhaBaseSql
-            })
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      const res =
-        JSON.parse(texto);
-
-      if (!res.ok) {
-        throw new Error(
-          res.mensagem ||
-          'Não foi possível salvar a seleção.'
-        );
-      }
-
-      status.className =
-        'modal-status ok';
-
-      status.textContent =
-        'Pedido conciliado com sucesso.';
-
-      await carregarConciliacao();
-
-      if (
-        document.getElementById(
-          'page-dashboard'
-        ).classList.contains(
-          'active'
-        )
-      ) {
-        await carregarDashboard();
-      }
-
-      setTimeout(() => {
-        fecharModalCandidatos();
-      }, 450);
-
-    } catch (erro) {
-
-      status.className =
-        'modal-status error';
-
-      status.textContent =
-        erro && erro.message
-          ? erro.message
-          : String(erro);
-    }
-  }
-
-
-  function fecharModalCandidatos() {
-
-    document
-      .getElementById(
-        'modalCandidatos'
-      )
-      .classList.remove(
-        'active'
-      );
-
-    localizadorCandidatoAtual = '';
-  }
-
-
-  function fecharModalCandidatosAoFundo(
-    event
-  ) {
-
-    if (
-      event.target.id ===
-      'modalCandidatos'
-    ) {
-      fecharModalCandidatos();
-    }
-  }
-
-
-  /****************************************************
-   * DASHBOARD - TRANSAÇÕES POR MÊS
-   ****************************************************/
-
-  let dashboardDados = null;
-
-
-  async function carregarDashboard() {
-
-    const container =
-      document.getElementById('dashboardTabela');
-
-    const selectAno =
-      document.getElementById('dashboardAno');
-
-    container.className = 'loading';
-    container.textContent = 'Carregando dashboard...';
-
-    try {
-
-      const response =
-        await fetch(
-          API_URL + '?action=listar&termo=',
-          {
-            method: 'GET',
-            redirect: 'follow'
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      let data;
-
-      try {
-        data = JSON.parse(texto);
-      } catch (erro) {
-        console.error('Resposta recebida:', texto);
-        throw new Error(
-          'O Apps Script retornou uma resposta inválida.'
-        );
-      }
-
-      if (!data.ok) {
-        throw new Error(
-          data.mensagem ||
-          'Erro ao carregar dados do dashboard.'
-        );
-      }
-
-      dashboardDados = data;
-
-      const indiceDataReserva =
-        localizarIndiceCabecalho(
-          data.headers,
-          'Data da reserva'
-        );
-
-      if (indiceDataReserva === -1) {
-
-        selectAno.innerHTML =
-          '<option value="">Sem anos disponíveis</option>';
-
-        container.className = 'loading';
-        container.textContent =
-          'A coluna "Data da reserva" não foi encontrada.';
-
-        return;
-      }
-
-      const anos = new Set();
-
-      data.rows.forEach(row => {
-
-        const partes =
-          extrairPartesData(
-            row[indiceDataReserva]
-          );
-
-        if (partes) {
-          anos.add(partes.ano);
-        }
-      });
-
-      const anosOrdenados =
-        Array.from(anos)
-          .sort((a, b) => b - a);
-
-      const anoSelecionadoAnterior =
-        selectAno.value;
-
-      selectAno.innerHTML = '';
-
-      if (!anosOrdenados.length) {
-
-        selectAno.innerHTML =
-          '<option value="">Sem anos disponíveis</option>';
-
-        container.className = 'loading';
-        container.textContent =
-          'Nenhuma Data da reserva válida foi encontrada.';
-
-        return;
-      }
-
-      anosOrdenados.forEach(ano => {
-
-        const option =
-          document.createElement('option');
-
-        option.value = String(ano);
-        option.textContent = String(ano);
-
-        selectAno.appendChild(option);
-      });
-
-      if (
-        anoSelecionadoAnterior &&
-        anosOrdenados.includes(
-          Number(anoSelecionadoAnterior)
-        )
-      ) {
-        selectAno.value =
-          anoSelecionadoAnterior;
-      } else {
-        selectAno.value =
-          String(anosOrdenados[0]);
-      }
-
-      renderDashboard();
-
-    } catch (erro) {
-
-      console.error(erro);
-
-      container.className = 'loading';
-
-      container.textContent =
-        'Erro: ' +
-        (
-          erro &&
-          erro.message
-            ? erro.message
-            : String(erro)
-        );
-    }
-  }
-
-
-  function renderDashboard() {
-
-    if (!dashboardDados) {
-      return;
-    }
-
-    const container =
-      document.getElementById('dashboardTabela');
-
-    const anoSelecionado =
-      Number(
-        document.getElementById(
-          'dashboardAno'
-        ).value || 0
-      );
-
-    const indiceDataReserva =
-      localizarIndiceCabecalho(
-        dashboardDados.headers,
-        'Data da reserva'
-      );
-
-    const indiceStatusConciliacao =
-      localizarIndiceCabecalho(
-        dashboardDados.headers,
-        'Status Conciliação'
-      );
-
-    if (indiceDataReserva === -1) {
-
-      container.className = 'loading';
-      container.textContent =
-        'A coluna "Data da reserva" não foi encontrada.';
-
-      return;
-    }
-
-    const nomesMeses = [
-      'JAN',
-      'FEV',
-      'MAR',
-      'ABR',
-      'MAI',
-      'JUN',
-      'JUL',
-      'AGO',
-      'SET',
-      'OUT',
-      'NOV',
-      'DEZ'
-    ];
-
-    const totais =
-      Array.from(
-        { length: 12 },
-        () => ({
-          qtd: 0,
-          conciliado: 0
-        })
-      );
-
-    dashboardDados.rows.forEach(
-      row => {
-
-        const partes =
-          extrairPartesData(
-            row[indiceDataReserva]
-          );
-
-        if (!partes) {
-          return;
-        }
-
-        if (
-          anoSelecionado &&
-          partes.ano !==
-          anoSelecionado
-        ) {
-          return;
-        }
-
-        const item =
-          totais[
-            partes.mes - 1
-          ];
-
-        item.qtd++;
-
-        if (
-          indiceStatusConciliacao !== -1 &&
-          normalizarTextoDashboard(
-            row[
-              indiceStatusConciliacao
-            ]
-          ) ===
-          normalizarTextoDashboard(
-            'Conciliado'
-          )
-        ) {
-          item.conciliado++;
-        }
-      }
-    );
-
-    let html =
-      '<table class="dashboard-table">' +
-      '<thead>' +
-      '<tr>' +
-      '<th>Mês</th>' +
-      '<th>Qtd</th>' +
-      '<th>Qtd Conciliado</th>' +
-      '<th>Qtd Pendente</th>' +
-      '<th>% Conciliado</th>' +
-      '</tr>' +
-      '</thead>' +
-      '<tbody>';
-
-    totais.forEach(
-      (item, index) => {
-
-        const pendente =
-          item.qtd -
-          item.conciliado;
-
-        const percentual =
-          item.qtd > 0
-            ? (
-                item.conciliado /
-                item.qtd
-              ) * 100
-            : 0;
-
-        html +=
-          '<tr>' +
-          '<td>' +
-          escapeHtml(
-            nomesMeses[index]
-          ) +
-          '</td>' +
-          '<td>' +
-          escapeHtml(
-            item.qtd
-          ) +
-          '</td>' +
-          '<td>' +
-          escapeHtml(
-            item.conciliado
-          ) +
-          '</td>' +
-          '<td>' +
-          escapeHtml(
-            pendente
-          ) +
-          '</td>' +
-          '<td>' +
-          escapeHtml(
-            percentual.toLocaleString(
-              'pt-BR',
-              {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              }
-            ) + '%'
-          ) +
-          '</td>' +
-          '</tr>';
-      }
-    );
-
-    html +=
-      '</tbody>' +
-      '</table>';
-
-    container.className = '';
-    container.innerHTML = html;
-  }
-
-
-  function localizarIndiceCabecalho(
-    headers,
-    cabecalho
-  ) {
-
-    const alvo =
-      normalizarTextoDashboard(
-        cabecalho
-      );
-
-    return headers.findIndex(
-      h =>
-        normalizarTextoDashboard(h) ===
-        alvo
-    );
-  }
-
-
-  function normalizarTextoDashboard(valor) {
-
-    return String(
-      valor == null
-        ? ''
-        : valor
-    )
-      .normalize('NFD')
-      .replace(
-        /[\u0300-\u036f]/g,
-        ''
-      )
-      .trim()
-      .toLowerCase();
-  }
-
-
-  function extrairPartesData(valor) {
-
-    if (
-      valor == null ||
-      String(valor).trim() === ''
-    ) {
-      return null;
-    }
-
-    const texto =
-      String(valor).trim();
-
-    // DD/MM/AAAA
-    let match =
-      texto.match(
-        /^(\d{1,2})\/(\d{1,2})\/(\d{4})/
-      );
-
-    if (match) {
-
-      const dia = Number(match[1]);
-      const mes = Number(match[2]);
-      const ano = Number(match[3]);
-
-      if (
-        dia >= 1 &&
-        dia <= 31 &&
-        mes >= 1 &&
-        mes <= 12
-      ) {
-        return { dia, mes, ano };
-      }
-    }
-
-    // AAAA-MM-DD
-    match =
-      texto.match(
-        /^(\d{4})-(\d{1,2})-(\d{1,2})/
-      );
-
-    if (match) {
-
-      const ano = Number(match[1]);
-      const mes = Number(match[2]);
-      const dia = Number(match[3]);
-
-      if (
-        dia >= 1 &&
-        dia <= 31 &&
-        mes >= 1 &&
-        mes <= 12
-      ) {
-        return { dia, mes, ano };
-      }
-    }
-
-    // Tenta interpretar outros formatos reconhecidos pelo navegador.
-    const data =
-      new Date(texto);
-
-    if (!isNaN(data.getTime())) {
-
-      return {
-        dia: data.getDate(),
-        mes: data.getMonth() + 1,
-        ano: data.getFullYear()
-      };
-    }
-
-    return null;
-  }
-
-
-  /****************************************************
-   * FORMATA VALORES PARA REAL BRASILEIRO
-   ****************************************************/
-
-  function formatarMoedaBR(valor) {
-
-    if (valor == null || String(valor).trim() === '') {
-      return '';
-    }
-
-    let texto = String(valor)
-      .trim()
-      .replace(/\s/g, '')
-      .replace(/^R\$/i, '');
-
-    let numero;
-
-    // Formato brasileiro: 1.234,56
-    if (texto.includes(',')) {
-      numero = Number(
-        texto
-          .replace(/\./g, '')
-          .replace(',', '.')
-      );
-    } else {
-      // Número puro ou formato 1234.56
-      numero = Number(texto);
-    }
-
-    if (!Number.isFinite(numero)) {
-      return String(valor);
-    }
-
-    return numero.toLocaleString(
-      'pt-BR',
-      {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }
-    );
-  }
-
-
-  /****************************************************
-   * FORMATA DATAS PARA DD/MM/AAAA
-   ****************************************************/
-
-  function formatarDataBR(valor) {
-
-    if (valor == null || valor === '') {
-      return '';
-    }
-
-    const texto = String(valor).trim();
-
-    // Já está no padrão brasileiro.
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
-      return texto;
-    }
-
-    // Formato ISO: 2026-08-17 ou 2026-08-17T...
-    const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
-
-    if (iso) {
-      return iso[3] + '/' + iso[2] + '/' + iso[1];
-    }
-
-    // Formato americano comum: MM/DD/YYYY
-    const americano = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-
-    if (americano) {
-      return String(americano[2]).padStart(2, '0') + '/' +
-             String(americano[1]).padStart(2, '0') + '/' +
-             americano[3];
-    }
-
-    // Tenta interpretar outros formatos de data.
-    const data = new Date(texto);
-
-    if (!isNaN(data.getTime())) {
-      return String(data.getDate()).padStart(2, '0') + '/' +
-             String(data.getMonth() + 1).padStart(2, '0') + '/' +
-             data.getFullYear();
-    }
-
-    // Se não conseguir interpretar, mantém o valor original.
-    return texto;
   }
 
 
