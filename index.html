@@ -549,6 +549,130 @@
       transform: none;
     }
 
+    .paginacao {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .paginacao-controles {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pagina-btn {
+      min-width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #111827;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .pagina-btn:hover {
+      background: #f3f4f6;
+    }
+
+    .pagina-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .pagina-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .row-expanded td {
+      background: #fffbea !important;
+    }
+
+    .sql-detail-row td {
+      padding: 0 !important;
+      background: #f8fafc !important;
+    }
+
+    .sql-detail {
+      padding: 14px 16px 16px;
+      border-left: 4px solid var(--accent);
+      background: #f8fafc;
+    }
+
+    .sql-detail-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    .sql-options {
+      display: grid;
+      gap: 12px;
+    }
+
+    .sql-option {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .sql-option-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #f9fafb;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sql-option-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(155px, 1fr));
+      overflow-x: auto;
+    }
+
+    .sql-field {
+      min-width: 155px;
+      padding: 10px 12px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sql-field b {
+      display: block;
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+
+    .sql-field span {
+      display: block;
+      font-size: 13px;
+      word-break: break-word;
+    }
+
+    .sql-match {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .sql-diff {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -899,6 +1023,11 @@
           class="loading">
           Clique em “Buscar / Atualizar” para carregar.
         </div>
+      </div>
+
+      <div id="paginacaoTransacoes" class="paginacao" style="display:none">
+        <div id="infoPaginacao" class="badge">Exibindo 0 registros</div>
+        <div id="controlesPaginacao" class="paginacao-controles"></div>
       </div>
 
     </section>
@@ -1274,7 +1403,442 @@
    * LISTA TRANSAÇÕES
    ****************************************************/
 
+  /****************************************************
+   * AÇÕES DA TABELA
+   ****************************************************/
+
+  let dadosListagemAtual = null;
+  let colunasListagemAtual = [];
+  let edicaoAtual = null;
+  let exclusaoAtual = null;
+
+  const ITENS_POR_PAGINA = 10;
+  let paginaAtualTransacoes = 1;
+  let detalhesSqlAbertos = {};
+
+  const CAMPOS_EDITAVEIS = [
+    'ID Reserva',
+    'Localizador',
+    'ID no fornecedor',
+    'Hotel',
+    'Cidade',
+    'Data de check-in',
+    'Data de check-out',
+    'Data da reserva',
+    'Situação',
+    'Hotel Net (sem taxas)',
+    'Impostos e Taxas',
+    'Markup',
+    'Pagto ao fornecedor',
+    'Cartão Fornecedor',
+    'Pax',
+    'Comissão a receber (%)',
+    'Comissão a receber',
+    'Tipo de pagamento',
+    'CC Cod.Aut. (recebido)'
+  ];
+
+  function editarTransacao(rowIndex) {
+
+    if (!dadosListagemAtual) {
+      return;
+    }
+
+    const row = dadosListagemAtual.rows[rowIndex];
+
+    if (!row) {
+      return;
+    }
+
+    const indiceId = localizarIndiceCabecalho(
+      dadosListagemAtual.headers,
+      'ID Reserva'
+    );
+
+    if (indiceId === -1) {
+      alert('Não foi possível localizar o ID da Reserva.');
+      return;
+    }
+
+    const idOriginal = row[indiceId];
+
+    edicaoAtual = {
+      rowIndex: rowIndex,
+      idOriginal: idOriginal
+    };
+
+    const container =
+      document.getElementById('formEditarCampos');
+
+    container.innerHTML = '';
+
+    CAMPOS_EDITAVEIS.forEach(nomeCampo => {
+
+      const indice =
+        localizarIndiceCabecalho(
+          dadosListagemAtual.headers,
+          nomeCampo
+        );
+
+      if (indice === -1) {
+        return;
+      }
+
+      const valor = row[indice] == null ? '' : row[indice];
+
+      const wrapper =
+        document.createElement('div');
+
+      wrapper.className = 'campo-form';
+
+      const label =
+        document.createElement('label');
+
+      label.textContent = nomeCampo;
+
+      const input =
+        document.createElement('input');
+
+      input.type = 'text';
+      input.dataset.campo = nomeCampo;
+      input.value = prepararValorParaEdicao(nomeCampo, valor);
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+    });
+
+    const status =
+      document.getElementById('editarStatus');
+
+    status.className = 'modal-status';
+    status.textContent = '';
+
+    document
+      .getElementById('modalEditar')
+      .classList.add('active');
+  }
+
+
+  function salvarTransacao(rowIndex) {
+    editarTransacao(rowIndex);
+  }
+
+
+  function prepararValorParaEdicao(campo, valor) {
+
+    const camposData = [
+      'Data de check-in',
+      'Data de check-out',
+      'Data da reserva'
+    ];
+
+    const camposMoeda = [
+      'Hotel Net (sem taxas)',
+      'Impostos e Taxas',
+      'Markup',
+      'Comissão a receber'
+    ];
+
+    if (camposData.includes(campo)) {
+      return formatarDataBR(valor);
+    }
+
+    if (camposMoeda.includes(campo)) {
+      const formatado = formatarMoedaBR(valor);
+      return String(formatado).replace(/^R\$\s?/, '');
+    }
+
+    return String(valor == null ? '' : valor);
+  }
+
+
+  async function salvarEdicao() {
+
+    if (!edicaoAtual) {
+      return;
+    }
+
+    const btn =
+      document.getElementById('btnSalvarEdicao');
+
+    const status =
+      document.getElementById('editarStatus');
+
+    const atualizacoes = {};
+
+    document
+      .querySelectorAll('#formEditarCampos [data-campo]')
+      .forEach(input => {
+
+        atualizacoes[input.dataset.campo] =
+          input.value;
+      });
+
+    try {
+
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      status.className = 'modal-status';
+      status.style.display = 'block';
+      status.textContent = 'Atualizando a linha na planilha...';
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action: 'atualizar',
+              idOriginal: edicaoAtual.idOriginal,
+              atualizacoes: atualizacoes
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let res;
+
+      try {
+        res = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error('O Apps Script retornou uma resposta inválida.');
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível atualizar a transação.'
+        );
+      }
+
+      status.className = 'modal-status ok';
+      status.textContent =
+        'Alterações salvas na mesma linha da planilha.';
+
+      await carregarTransacoes();
+
+      if (
+        document
+          .getElementById('page-dashboard')
+          .classList.contains('active')
+      ) {
+        await carregarDashboard();
+      }
+
+      setTimeout(() => {
+        fecharModalEditar();
+      }, 700);
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      status.className = 'modal-status error';
+      status.textContent =
+        erro && erro.message
+          ? erro.message
+          : String(erro);
+
+    } finally {
+
+      btn.disabled = false;
+      btn.textContent = '✓ Salvar alterações';
+    }
+  }
+
+
+  function excluirTransacao(rowIndex) {
+
+    if (!dadosListagemAtual) {
+      return;
+    }
+
+    const row =
+      dadosListagemAtual.rows[rowIndex];
+
+    if (!row) {
+      return;
+    }
+
+    const indiceId =
+      localizarIndiceCabecalho(
+        dadosListagemAtual.headers,
+        'ID Reserva'
+      );
+
+    const indiceHotel =
+      localizarIndiceCabecalho(
+        dadosListagemAtual.headers,
+        'Hotel'
+      );
+
+    if (indiceId === -1) {
+      alert('Não foi possível localizar o ID da Reserva.');
+      return;
+    }
+
+    const idReserva = row[indiceId];
+    const hotel =
+      indiceHotel !== -1
+        ? row[indiceHotel]
+        : '';
+
+    exclusaoAtual = {
+      rowIndex: rowIndex,
+      idReserva: idReserva
+    };
+
+    document
+      .getElementById('textoConfirmacaoExclusao')
+      .textContent =
+        'Reserva: ' +
+        idReserva +
+        (hotel ? ' • ' + hotel : '');
+
+    const status =
+      document.getElementById('excluirStatus');
+
+    status.className = 'modal-status';
+    status.textContent = '';
+
+    document
+      .getElementById('modalExcluir')
+      .classList.add('active');
+  }
+
+
+  async function confirmarExclusao() {
+
+    if (!exclusaoAtual) {
+      return;
+    }
+
+    const btn =
+      document.getElementById('btnConfirmarExclusao');
+
+    const status =
+      document.getElementById('excluirStatus');
+
+    try {
+
+      btn.disabled = true;
+      btn.textContent = 'Excluindo...';
+
+      status.className = 'modal-status';
+      status.style.display = 'block';
+      status.textContent =
+        'Removendo a linha da planilha...';
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action: 'excluir',
+              idReserva: exclusaoAtual.idReserva
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      let res;
+
+      try {
+        res = JSON.parse(texto);
+      } catch (erro) {
+        console.error('Resposta recebida:', texto);
+        throw new Error('O Apps Script retornou uma resposta inválida.');
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível excluir a transação.'
+        );
+      }
+
+      status.className = 'modal-status ok';
+      status.textContent =
+        'Transação excluída da planilha.';
+
+      await carregarTransacoes();
+
+      setTimeout(() => {
+        fecharModalExcluir();
+      }, 650);
+
+    } catch (erro) {
+
+      console.error(erro);
+
+      status.className = 'modal-status error';
+      status.textContent =
+        erro && erro.message
+          ? erro.message
+          : String(erro);
+
+    } finally {
+
+      btn.disabled = false;
+      btn.textContent = '✕ Excluir';
+    }
+  }
+
+
+  function fecharModalEditar() {
+    document
+      .getElementById('modalEditar')
+      .classList.remove('active');
+
+    edicaoAtual = null;
+  }
+
+
+  function fecharModalExcluir() {
+    document
+      .getElementById('modalExcluir')
+      .classList.remove('active');
+
+    exclusaoAtual = null;
+  }
+
+
+  function fecharModalAoFundo(event, idModal) {
+
+    if (event.target.id === idModal) {
+
+      if (idModal === 'modalEditar') {
+        fecharModalEditar();
+      }
+
+      if (idModal === 'modalExcluir') {
+        fecharModalExcluir();
+      }
+    }
+  }
+
+
+
   async function carregarTransacoes() {
+
+    paginaAtualTransacoes = 1;
+    detalhesSqlAbertos = {};
 
     const tabela =
       document.getElementById('tabela');
@@ -1380,6 +1944,11 @@
     const container =
       document.getElementById('tabela');
 
+    const paginacao =
+      document.getElementById(
+        'paginacaoTransacoes'
+      );
+
     container.className = '';
 
     if (
@@ -1391,6 +1960,9 @@
         '<div class="loading">' +
         'Nenhum registro encontrado para o filtro selecionado.' +
         '</div>';
+
+      paginacao.style.display =
+        'none';
 
       return;
     }
@@ -1419,7 +1991,9 @@
 
     function normalizarCabecalho(valor) {
       return String(
-        valor == null ? '' : valor
+        valor == null
+          ? ''
+          : valor
       )
         .normalize('NFD')
         .replace(
@@ -1437,7 +2011,9 @@
       (header, index) => {
 
         mapaHeaders.set(
-          normalizarCabecalho(header),
+          normalizarCabecalho(
+            header
+          ),
           index
         );
       }
@@ -1450,7 +2026,9 @@
             nome,
             index:
               mapaHeaders.get(
-                normalizarCabecalho(nome)
+                normalizarCabecalho(
+                  nome
+                )
               )
           })
         )
@@ -1461,6 +2039,37 @@
 
     colunasListagemAtual =
       colunasEncontradas;
+
+    const totalPaginas =
+      Math.max(
+        1,
+        Math.ceil(
+          data.rows.length /
+          ITENS_POR_PAGINA
+        )
+      );
+
+    if (
+      paginaAtualTransacoes >
+      totalPaginas
+    ) {
+      paginaAtualTransacoes =
+        totalPaginas;
+    }
+
+    const inicio =
+      (
+        paginaAtualTransacoes -
+        1
+      ) *
+      ITENS_POR_PAGINA;
+
+    const fim =
+      Math.min(
+        inicio +
+        ITENS_POR_PAGINA,
+        data.rows.length
+      );
 
     let html =
       '<table>' +
@@ -1475,7 +2084,9 @@
 
         html +=
           '<th>' +
-          escapeHtml(coluna.nome) +
+          escapeHtml(
+            coluna.nome
+          ) +
           '</th>';
       }
     );
@@ -1485,164 +2096,195 @@
       '</thead>' +
       '<tbody>';
 
-    data.rows.forEach(
-      (row, rowIndex) => {
+    for (
+      let rowIndex = inicio;
+      rowIndex < fim;
+      rowIndex++
+    ) {
 
-        const meta =
-          data.meta &&
-          data.meta[rowIndex]
-            ? data.meta[rowIndex]
-            : {
-                status: 'Não encontrado',
-                quantidadeSql: 0
-              };
+      const row =
+        data.rows[rowIndex];
 
-        html +=
-          '<tr id="transacao-row-' +
-          rowIndex +
-          '">';
+      const meta =
+        data.meta &&
+        data.meta[rowIndex]
+          ? data.meta[rowIndex]
+          : {
+              status:
+                'Não encontrado',
+              quantidadeSql:
+                0
+            };
 
-        html +=
-          '<td>' +
-          '<div class="acoes-linha">' +
+      const expandido =
+        detalhesSqlAbertos[
+          rowIndex
+        ] === true;
 
-          '<button ' +
-          'class="acao-btn acao-editar" ' +
-          'type="button" ' +
-          'title="Editar" ' +
-          'aria-label="Editar" ' +
-          'onclick="editarTransacao(' +
-          rowIndex +
-          ')">✎</button>' +
+      html +=
+        '<tr ' +
+        'id="transacao-row-' +
+        rowIndex +
+        '" class="' +
+        (
+          expandido
+            ? 'row-expanded'
+            : ''
+        ) +
+        '">';
 
-          '<button ' +
-          'class="acao-btn acao-excluir" ' +
-          'type="button" ' +
-          'title="Excluir" ' +
-          'aria-label="Excluir" ' +
-          'onclick="excluirTransacao(' +
-          rowIndex +
-          ')">✕</button>' +
+      html +=
+        '<td>' +
+        '<div class="acoes-linha">' +
 
-          '<button ' +
-          'class="acao-btn acao-salvar" ' +
-          'type="button" ' +
-          'title="Salvar / Editar" ' +
-          'aria-label="Salvar / Editar" ' +
-          'onclick="salvarTransacao(' +
-          rowIndex +
-          ')">✓</button>';
+        '<button class="acao-btn acao-editar" type="button" title="Editar" onclick="editarTransacao(' +
+        rowIndex +
+        ')">✎</button>' +
+
+        '<button class="acao-btn acao-excluir" type="button" title="Excluir" onclick="excluirTransacao(' +
+        rowIndex +
+        ')">✕</button>' +
+
+        '<button class="acao-btn acao-salvar" type="button" title="Salvar / Editar" onclick="salvarTransacao(' +
+        rowIndex +
+        ')">✓</button>';
+
+      if (
+        Number(
+          meta.quantidadeSql || 0
+        ) > 0
+      ) {
+
+        let label =
+          'Conciliar';
 
         if (
-          Number(
-            meta.quantidadeSql || 0
-          ) > 0
+          meta.status ===
+          'Seleção necessária'
         ) {
+          label =
+            'Selecionar';
+        }
 
-          let label =
-            'Conciliar';
-
-          if (
-            meta.status ===
-            'Seleção necessária'
-          ) {
-            label =
-              'Selecionar';
-          }
-
-          if (
-            meta.status ===
-            'Conciliado'
-          ) {
-            label =
-              'Ver';
-          }
-
-          html +=
-            '<button ' +
-            'class="btn-small btn-blue" ' +
-            'type="button" ' +
-            'onclick="abrirCandidatos(' +
-            rowIndex +
-            ')">' +
-            escapeHtml(label) +
-            '</button>';
+        if (
+          meta.status ===
+          'Conciliado'
+        ) {
+          label =
+            expandido
+              ? 'Ocultar SQL'
+              : 'Ver SQL';
+        } else if (
+          expandido
+        ) {
+          label =
+            'Ocultar';
         }
 
         html +=
-          '</div>' +
-          '</td>';
-
-        html +=
-          '<td>' +
-          renderStatusConciliacao(
-            meta.status
-          ) +
-          '</td>';
-
-        html +=
-          '<td>' +
+          '<button class="btn-small btn-blue" type="button" onclick="alternarDetalheSql(' +
+          rowIndex +
+          ')">' +
           escapeHtml(
-            meta.quantidadeSql || 0
+            label
           ) +
-          '</td>';
-
-        colunasEncontradas.forEach(
-          coluna => {
-
-            const valorOriginal =
-              row[coluna.index];
-
-            const colunasData = [
-              'Data de check-in',
-              'Data de check-out',
-              'Data da reserva'
-            ];
-
-            const colunasMoeda = [
-              'Hotel Net (sem taxas)',
-              'Impostos e Taxas',
-              'Markup',
-              'Comissão a receber'
-            ];
-
-            let valorExibido =
-              valorOriginal;
-
-            if (
-              colunasData.includes(
-                coluna.nome
-              )
-            ) {
-              valorExibido =
-                formatarDataBR(
-                  valorOriginal
-                );
-            }
-
-            if (
-              colunasMoeda.includes(
-                coluna.nome
-              )
-            ) {
-              valorExibido =
-                formatarMoedaBR(
-                  valorOriginal
-                );
-            }
-
-            html +=
-              '<td>' +
-              escapeHtml(
-                valorExibido
-              ) +
-              '</td>';
-          }
-        );
-
-        html += '</tr>';
+          '</button>';
       }
-    );
+
+      html +=
+        '</div>' +
+        '</td>';
+
+      html +=
+        '<td>' +
+        renderStatusConciliacao(
+          meta.status
+        ) +
+        '</td>';
+
+      html +=
+        '<td>' +
+        escapeHtml(
+          meta.quantidadeSql || 0
+        ) +
+        '</td>';
+
+      colunasEncontradas.forEach(
+        coluna => {
+
+          const valorOriginal =
+            row[coluna.index];
+
+          const colunasData = [
+            'Data de check-in',
+            'Data de check-out',
+            'Data da reserva'
+          ];
+
+          const colunasMoeda = [
+            'Hotel Net (sem taxas)',
+            'Impostos e Taxas',
+            'Markup',
+            'Comissão a receber'
+          ];
+
+          let valorExibido =
+            valorOriginal;
+
+          if (
+            colunasData.includes(
+              coluna.nome
+            )
+          ) {
+            valorExibido =
+              formatarDataBR(
+                valorOriginal
+              );
+          }
+
+          if (
+            colunasMoeda.includes(
+              coluna.nome
+            )
+          ) {
+            valorExibido =
+              formatarMoedaBR(
+                valorOriginal
+              );
+          }
+
+          html +=
+            '<td>' +
+            escapeHtml(
+              valorExibido
+            ) +
+            '</td>';
+        }
+      );
+
+      html += '</tr>';
+
+      if (expandido) {
+
+        html +=
+          '<tr class="sql-detail-row">' +
+          '<td colspan="' +
+          (
+            colunasEncontradas.length +
+            3
+          ) +
+          '">' +
+          '<div id="sql-detail-' +
+          rowIndex +
+          '" class="sql-detail">' +
+          '<div class="loading">' +
+          'Carregando dados da Base SQL...' +
+          '</div>' +
+          '</div>' +
+          '</td>' +
+          '</tr>';
+      }
+    }
 
     html +=
       '</tbody>' +
@@ -1650,6 +2292,651 @@
 
     container.innerHTML =
       html;
+
+    renderPaginacaoTransacoes(
+      totalPaginas,
+      inicio,
+      fim,
+      data.rows.length
+    );
+
+    for (
+      let rowIndex = inicio;
+      rowIndex < fim;
+      rowIndex++
+    ) {
+
+      if (
+        detalhesSqlAbertos[
+          rowIndex
+        ] === true
+      ) {
+        carregarDetalheSqlInline(
+          rowIndex
+        );
+      }
+    }
+  }
+
+
+  function renderPaginacaoTransacoes(
+    totalPaginas,
+    inicio,
+    fim,
+    totalRegistros
+  ) {
+
+    const paginacao =
+      document.getElementById(
+        'paginacaoTransacoes'
+      );
+
+    const info =
+      document.getElementById(
+        'infoPaginacao'
+      );
+
+    const controles =
+      document.getElementById(
+        'controlesPaginacao'
+      );
+
+    paginacao.style.display =
+      'flex';
+
+    info.textContent =
+      'Exibindo ' +
+      (inicio + 1) +
+      ' a ' +
+      fim +
+      ' de ' +
+      totalRegistros;
+
+    const total =
+      totalPaginas;
+
+    let html = '';
+
+    html +=
+      '<button class="pagina-btn" type="button" ' +
+      (
+        paginaAtualTransacoes === 1
+          ? 'disabled '
+          : ''
+      ) +
+      'onclick="mudarPaginaTransacoes(' +
+      (
+        paginaAtualTransacoes -
+        1
+      ) +
+      ')">‹</button>';
+
+    let primeira =
+      Math.max(
+        1,
+        paginaAtualTransacoes - 2
+      );
+
+    let ultima =
+      Math.min(
+        total,
+        primeira + 4
+      );
+
+    primeira =
+      Math.max(
+        1,
+        ultima - 4
+      );
+
+    for (
+      let pagina = primeira;
+      pagina <= ultima;
+      pagina++
+    ) {
+
+      html +=
+        '<button class="pagina-btn ' +
+        (
+          pagina ===
+          paginaAtualTransacoes
+            ? 'active'
+            : ''
+        ) +
+        '" type="button" onclick="mudarPaginaTransacoes(' +
+        pagina +
+        ')">' +
+        pagina +
+        '</button>';
+    }
+
+    html +=
+      '<button class="pagina-btn" type="button" ' +
+      (
+        paginaAtualTransacoes ===
+        total
+          ? 'disabled '
+          : ''
+      ) +
+      'onclick="mudarPaginaTransacoes(' +
+      (
+        paginaAtualTransacoes +
+        1
+      ) +
+      ')">›</button>';
+
+    controles.innerHTML =
+      html;
+  }
+
+
+  function mudarPaginaTransacoes(
+    pagina
+  ) {
+
+    if (!dadosListagemAtual) {
+      return;
+    }
+
+    const totalPaginas =
+      Math.max(
+        1,
+        Math.ceil(
+          dadosListagemAtual.rows.length /
+          ITENS_POR_PAGINA
+        )
+      );
+
+    if (
+      pagina < 1 ||
+      pagina > totalPaginas
+    ) {
+      return;
+    }
+
+    paginaAtualTransacoes =
+      pagina;
+
+    detalhesSqlAbertos = {};
+
+    renderTabela(
+      dadosListagemAtual
+    );
+  }
+
+
+  function alternarDetalheSql(
+    rowIndex
+  ) {
+
+    detalhesSqlAbertos[
+      rowIndex
+    ] =
+      !detalhesSqlAbertos[
+        rowIndex
+      ];
+
+    renderTabela(
+      dadosListagemAtual
+    );
+  }
+
+
+  async function carregarDetalheSqlInline(
+    rowIndex
+  ) {
+
+    const meta =
+      dadosListagemAtual &&
+      dadosListagemAtual.meta
+        ? dadosListagemAtual.meta[
+            rowIndex
+          ]
+        : null;
+
+    const container =
+      document.getElementById(
+        'sql-detail-' +
+        rowIndex
+      );
+
+    if (
+      !meta ||
+      !container
+    ) {
+      return;
+    }
+
+    try {
+
+      const url =
+        API_URL +
+        '?action=candidatos' +
+        '&localizador=' +
+        encodeURIComponent(
+          meta.localizador
+        );
+
+      const response =
+        await fetch(
+          url,
+          {
+            method: 'GET',
+            redirect: 'follow'
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      const data =
+        JSON.parse(texto);
+
+      if (!data.ok) {
+        throw new Error(
+          data.mensagem ||
+          'Não foi possível carregar a Base SQL.'
+        );
+      }
+
+      renderDetalheSqlInline(
+        rowIndex,
+        meta,
+        data
+      );
+
+    } catch (erro) {
+
+      container.innerHTML =
+        '<div class="status error" style="display:block">' +
+        escapeHtml(
+          erro &&
+          erro.message
+            ? erro.message
+            : String(erro)
+        ) +
+        '</div>';
+    }
+  }
+
+
+  function renderDetalheSqlInline(
+    rowIndex,
+    meta,
+    data
+  ) {
+
+    const container =
+      document.getElementById(
+        'sql-detail-' +
+        rowIndex
+      );
+
+    if (!container) {
+      return;
+    }
+
+    const origem =
+      data.origem || {};
+
+    const candidatos =
+      data.candidatos || [];
+
+    if (!candidatos.length) {
+
+      container.innerHTML =
+        '<div class="loading">' +
+        'Nenhum registro encontrado na Base SQL.' +
+        '</div>';
+
+      return;
+    }
+
+    const linhaSelecionada =
+      Number(
+        data.linhaBaseSqlSelecionada ||
+        meta.linhaBaseSqlSelecionada ||
+        0
+      );
+
+    const campos = [
+      ['CONFIRMACAO', 'Localizador', 'CONFIRMACAO', 'texto'],
+      ['BB_RLOC', '', 'BB_RLOC', 'texto'],
+      ['HOTEL', 'Hotel', 'HOTEL', 'texto'],
+      ['PASSAGEIRO', 'Pax', 'PASSAGEIRONAOCAD', 'texto'],
+      ['RECEBIMENTO', 'Tipo de pagamento', 'RECEBIMENTO', 'texto'],
+      ['AUTORIZAÇÃO', 'CC Cod.Aut. (recebido)', 'AUTORIZACAOCARTAO', 'texto'],
+      ['INFOS', '', 'INFOS', 'texto'],
+      ['CHECK-IN', 'Data de check-in', 'BB_HOTEL_ENTRADA', 'data'],
+      ['CHECK-OUT', 'Data de check-out', 'BB_HOTEL_SAIDA', 'data'],
+      ['TARIFA', 'Hotel Net (sem taxas)', 'TARIFA', 'moeda'],
+      ['TAXA', 'Impostos e Taxas', 'TAXA', 'moeda'],
+      ['MARKUP', 'Markup', 'MARKUP', 'moeda'],
+      ['EXTRAS', '', 'EXTRAS', 'moeda']
+    ];
+
+    let html =
+      '<div class="sql-detail-title">' +
+      '<span>Base SQL • Localizador ' +
+      escapeHtml(
+        meta.localizador
+      ) +
+      '</span>' +
+      '<span class="badge">' +
+      candidatos.length +
+      ' ocorrência(s)</span>' +
+      '</div>' +
+      '<div class="sql-options">';
+
+    candidatos.forEach(
+      (cand, index) => {
+
+        const selecionado =
+          Number(
+            cand.linha
+          ) ===
+          linhaSelecionada;
+
+        html +=
+          '<div class="sql-option">' +
+          '<div class="sql-option-header">' +
+          '<div><b>Registro SQL ' +
+          (index + 1) +
+          '</b>' +
+          (
+            selecionado
+              ? ' • <span class="status-badge status-conciliado">Conciliado</span>'
+              : ''
+          ) +
+          '</div>';
+
+        if (!selecionado) {
+
+          html +=
+            '<button class="btn-small btn-blue" type="button" onclick="selecionarCandidatoInline(' +
+            rowIndex +
+            ',' +
+            cand.linha +
+            ')">Selecionar e conciliar</button>';
+        }
+
+        html +=
+          '</div>' +
+          '<div class="sql-option-grid">';
+
+        campos.forEach(
+          campo => {
+
+            const label =
+              campo[0];
+
+            const campoOrigem =
+              campo[1];
+
+            const campoSql =
+              campo[2];
+
+            const tipo =
+              campo[3];
+
+            let valorSql =
+              cand.dados[
+                campoSql
+              ];
+
+            let valorOrigem =
+              campoOrigem
+                ? origem[
+                    campoOrigem
+                  ]
+                : '';
+
+            if (
+              valorSql === undefined
+            ) {
+              valorSql = '';
+            }
+
+            if (
+              valorOrigem === undefined
+            ) {
+              valorOrigem = '';
+            }
+
+            if (
+              tipo === 'data'
+            ) {
+              valorSql =
+                formatarDataBR(
+                  valorSql
+                );
+
+              valorOrigem =
+                formatarDataBR(
+                  valorOrigem
+                );
+            }
+
+            if (
+              tipo === 'moeda'
+            ) {
+              valorSql =
+                formatarMoedaBR(
+                  valorSql
+                );
+
+              if (campoOrigem) {
+                valorOrigem =
+                  formatarMoedaBR(
+                    valorOrigem
+                  );
+              }
+            }
+
+            const comparar =
+              campoOrigem !== '';
+
+            const iguais =
+              comparar
+                ? compararValoresConciliacao(
+                    tipo,
+                    valorOrigem,
+                    valorSql
+                  )
+                : false;
+
+            html +=
+              '<div class="sql-field ' +
+              (
+                comparar
+                  ? (
+                      iguais
+                        ? 'sql-match'
+                        : 'sql-diff'
+                    )
+                  : ''
+              ) +
+              '">' +
+              '<b>' +
+              escapeHtml(
+                label
+              ) +
+              '</b>' +
+              '<span>' +
+              escapeHtml(
+                valorSql
+              ) +
+              '</span>';
+
+            if (comparar) {
+              html +=
+                '<small style="display:block;margin-top:5px;opacity:.8">' +
+                'Pedido: ' +
+                escapeHtml(
+                  valorOrigem
+                ) +
+                '</small>';
+            }
+
+            html +=
+              '</div>';
+          }
+        );
+
+        html +=
+          '</div>' +
+          '</div>';
+      }
+    );
+
+    html +=
+      '</div>';
+
+    container.innerHTML =
+      html;
+  }
+
+
+  function compararValoresConciliacao(
+    tipo,
+    valorA,
+    valorB
+  ) {
+
+    if (
+      tipo === 'moeda'
+    ) {
+
+      const a =
+        numeroComparacaoBR(
+          valorA
+        );
+
+      const b =
+        numeroComparacaoBR(
+          valorB
+        );
+
+      return (
+        a !== null &&
+        b !== null &&
+        Math.abs(
+          a - b
+        ) < 0.01
+      );
+    }
+
+    return (
+      normalizarTextoDashboard(
+        valorA
+      ) ===
+      normalizarTextoDashboard(
+        valorB
+      )
+    );
+  }
+
+
+  function numeroComparacaoBR(
+    valor
+  ) {
+
+    if (
+      valor == null ||
+      String(
+        valor
+      ).trim() === ''
+    ) {
+      return null;
+    }
+
+    let texto =
+      String(valor)
+        .trim()
+        .replace(/\s/g, '')
+        .replace(/^R\$/i, '');
+
+    if (
+      texto.includes(',')
+    ) {
+      texto =
+        texto
+          .replace(/\./g, '')
+          .replace(',', '.');
+    }
+
+    const numero =
+      Number(texto);
+
+    return Number.isFinite(
+      numero
+    )
+      ? numero
+      : null;
+  }
+
+
+  async function selecionarCandidatoInline(
+    rowIndex,
+    linhaBaseSql
+  ) {
+
+    const meta =
+      dadosListagemAtual.meta[
+        rowIndex
+      ];
+
+    if (!meta) {
+      return;
+    }
+
+    try {
+
+      const response =
+        await fetch(
+          API_URL,
+          {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type':
+                'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+              action:
+                'selecionarCandidato',
+              localizador:
+                meta.localizador,
+              linhaBaseSql:
+                linhaBaseSql
+            })
+          }
+        );
+
+      const texto =
+        await response.text();
+
+      const res =
+        JSON.parse(texto);
+
+      if (!res.ok) {
+        throw new Error(
+          res.mensagem ||
+          'Não foi possível conciliar o pedido.'
+        );
+      }
+
+      await carregarTransacoes();
+
+    } catch (erro) {
+
+      alert(
+        erro &&
+        erro.message
+          ? erro.message
+          : String(erro)
+      );
+    }
   }
 
 
