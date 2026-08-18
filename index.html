@@ -3163,6 +3163,19 @@
       );
     }
 
+    if (
+      tipo === 'data'
+    ) {
+      return (
+        normalizarDataConciliacao(
+          valorA
+        ) ===
+        normalizarDataConciliacao(
+          valorB
+        )
+      );
+    }
+
     return (
       normalizarTextoDashboard(
         valorA
@@ -3324,43 +3337,139 @@
 
 
   function formatarDataBR(valor) {
-    if (valor == null || valor === '') return '';
 
-    const texto = String(valor).trim();
-
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
-      return texto;
+    if (
+      valor == null ||
+      String(valor).trim() === ''
+    ) {
+      return '';
     }
 
-    const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const texto =
+      String(valor).trim();
 
-    if (iso) {
-      return iso[3] + '/' + iso[2] + '/' + iso[1];
-    }
+    /**************************************************
+     * DD/MM/AAAA
+     **************************************************/
+    let m =
+      texto.match(
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s|$)/
+      );
 
-    const br = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-
-    if (br) {
+    if (m) {
       return (
-        String(br[1]).padStart(2, '0') + '/' +
-        String(br[2]).padStart(2, '0') + '/' +
-        br[3]
+        String(m[1]).padStart(2, '0') +
+        '/' +
+        String(m[2]).padStart(2, '0') +
+        '/' +
+        m[3]
       );
     }
 
-    const data = new Date(texto);
+    /**************************************************
+     * AAAA-MM-DD / AAAA-MM-DDTHH...
+     **************************************************/
+    m =
+      texto.match(
+        /^(\d{4})-(\d{1,2})-(\d{1,2})(?:T|\s|$)/
+      );
+
+    if (m) {
+      return (
+        String(m[3]).padStart(2, '0') +
+        '/' +
+        String(m[2]).padStart(2, '0') +
+        '/' +
+        m[1]
+      );
+    }
+
+    /**************************************************
+     * AAAAMMDD
+     **************************************************/
+    m =
+      texto.match(
+        /^(\d{4})(\d{2})(\d{2})$/
+      );
+
+    if (m) {
+      return (
+        m[3] +
+        '/' +
+        m[2] +
+        '/' +
+        m[1]
+      );
+    }
+
+    /**************************************************
+     * Date textual retornado pelo Google/JS.
+     * Usa UTC quando o texto contém GMT/UTC/Z para
+     * impedir alteração de dia por fuso horário.
+     **************************************************/
+    const data =
+      new Date(texto);
 
     if (!isNaN(data.getTime())) {
+
+      const usarUtc =
+        /GMT|UTC|Z$/i.test(texto) ||
+        /T\d{2}:\d{2}/.test(texto);
+
+      const dia =
+        usarUtc
+          ? data.getUTCDate()
+          : data.getDate();
+
+      const mes =
+        (
+          usarUtc
+            ? data.getUTCMonth()
+            : data.getMonth()
+        ) + 1;
+
+      const ano =
+        usarUtc
+          ? data.getUTCFullYear()
+          : data.getFullYear();
+
       return (
-        String(data.getDate()).padStart(2, '0') + '/' +
-        String(data.getMonth() + 1).padStart(2, '0') + '/' +
-        data.getFullYear()
+        String(dia).padStart(2, '0') +
+        '/' +
+        String(mes).padStart(2, '0') +
+        '/' +
+        ano
       );
     }
 
     return texto;
   }
 
+
+  function normalizarDataConciliacao(valor) {
+
+    const data =
+      formatarDataBR(valor);
+
+    const m =
+      String(data).match(
+        /^(\d{2})\/(\d{2})\/(\d{4})$/
+      );
+
+    if (!m) {
+      return normalizarTextoDashboard(
+        data
+      );
+    }
+
+    return (
+      m[3] +
+      '-' +
+      m[2] +
+      '-' +
+      m[1]
+    );
+  }
 
 
   function formatarMoedaBR(valor) {
