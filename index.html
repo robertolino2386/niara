@@ -2950,7 +2950,7 @@
       ['INFOS', '', 'INFOS', 'texto'],
       ['CHECK-IN', 'Data de check-in', 'BB_HOTEL_ENTRADA', 'data'],
       ['CHECK-OUT', 'Data de check-out', 'BB_HOTEL_SAIDA', 'data'],
-      ['TARIFA', 'Hotel Net (sem taxas)', 'TARIFA', 'moeda'],
+      ['TARIFA', 'Hotel Net (sem taxas)', 'TARIFA', 'tarifa'],
       ['TAXA + EXTRAS', 'Impostos e Taxas', 'TAXA', 'taxaExtras'],
       ['MARKUP', 'Markup', 'MARKUP', 'moeda']
     ];
@@ -3058,7 +3058,8 @@
             }
 
             if (
-              tipo === 'moeda'
+              tipo === 'moeda' ||
+              tipo === 'tarifa'
             ) {
               valorSql =
                 formatarMoedaBR(
@@ -3189,6 +3190,29 @@
         Math.abs(
           a - b
         ) < 0.01
+      );
+    }
+
+    if (
+      tipo === 'tarifa'
+    ) {
+
+      const a =
+        numeroComparacaoBR(
+          valorA
+        );
+
+      const b =
+        numeroComparacaoBR(
+          valorB
+        );
+
+      return (
+        a !== null &&
+        b !== null &&
+        Math.abs(
+          a - b
+        ) <= 0.05
       );
     }
 
