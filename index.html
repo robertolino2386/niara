@@ -2952,7 +2952,7 @@
       ['CONFIRMACAO', 'Localizador', 'CONFIRMACAO', 'texto'],
       ['BB_RLOC', '', 'BB_RLOC', 'texto'],
       ['HOTEL', '', 'HOTEL', 'texto'],
-      ['PASSAGEIRO', 'Pax', 'PASSAGEIRONAOCAD', 'texto'],
+      ['PASSAGEIRO', 'Pax', 'PASSAGEIRONAOCAD', 'passageiro'],
       ['RECEBIMENTO', 'Tipo de pagamento', 'RECEBIMENTO', 'pagamento'],
       ['AUTORIZAÇÃO', '', 'AUTORIZACAOCARTAO', 'texto'],
       ['INFOS', '', 'INFOS', 'texto'],
@@ -3174,6 +3174,72 @@
   }
 
 
+  function compararNomePassageiroFrontend(
+    nomeA,
+    nomeB
+  ) {
+
+    const limparNome =
+      valor =>
+        normalizarTextoDashboard(
+          valor
+        )
+          .replace(
+            /[^a-z0-9\s]/g,
+            ' '
+          )
+          .replace(
+            /\s+/g,
+            ' '
+          )
+          .trim();
+
+    const a =
+      limparNome(
+        nomeA
+      );
+
+    const b =
+      limparNome(
+        nomeB
+      );
+
+    if (
+      !a ||
+      !b
+    ) {
+      return false;
+    }
+
+    const palavrasA =
+      a.split(' ')
+        .filter(Boolean);
+
+    const palavrasB =
+      b.split(' ')
+        .filter(Boolean);
+
+    const menor =
+      palavrasA.length <= palavrasB.length
+        ? palavrasA
+        : palavrasB;
+
+    const maior =
+      new Set(
+        palavrasA.length <= palavrasB.length
+          ? palavrasB
+          : palavrasA
+      );
+
+    return menor.every(
+      palavra =>
+        maior.has(
+          palavra
+        )
+    );
+  }
+
+
   function compararValoresConciliacao(
     tipo,
     valorA,
@@ -3238,6 +3304,15 @@
         normalizarDataConciliacao(
           valorB
         )
+      );
+    }
+
+    if (
+      tipo === 'passageiro'
+    ) {
+      return compararNomePassageiroFrontend(
+        valorA,
+        valorB
       );
     }
 
@@ -3645,19 +3720,31 @@
   async function carregarDashboard() {
 
     const container =
-      document.getElementById('dashboardTabela');
+      document.getElementById(
+        'dashboardTabela'
+      );
 
     const selectAno =
-      document.getElementById('dashboardAno');
+      document.getElementById(
+        'dashboardAno'
+      );
 
-    container.className = 'loading';
-    container.textContent = 'Carregando dashboard...';
+    container.className =
+      'loading';
+
+    container.textContent =
+      'Carregando dashboard...';
 
     try {
 
+      /************************************************
+       * Usa a listagem simples.
+       * Não roda novamente toda a conciliação.
+       ************************************************/
       const response =
         await fetch(
-          API_URL + '?action=transacoes&termo=&status=',
+          API_URL +
+          '?action=listar&termo=',
           {
             method: 'GET',
             redirect: 'follow'
@@ -3668,16 +3755,20 @@
         await response.text();
 
       const data =
-        JSON.parse(texto);
+        JSON.parse(
+          texto
+        );
 
       if (!data.ok) {
+
         throw new Error(
           data.mensagem ||
           'Não foi possível carregar o dashboard.'
         );
       }
 
-      dashboardDados = data;
+      dashboardDados =
+        data;
 
       const idxData =
         localizarIndiceCabecalho(
@@ -3685,63 +3776,105 @@
           'Data da reserva'
         );
 
-      if (idxData === -1) {
+      if (
+        idxData === -1
+      ) {
+
         throw new Error(
           'A coluna Data da reserva não foi encontrada.'
         );
       }
 
-      const anos = new Set();
+      const anos =
+        new Set();
 
-      data.rows.forEach(row => {
-        const partes =
-          extrairPartesData(row[idxData]);
+      data.rows.forEach(
+        row => {
 
-        if (partes) {
-          anos.add(partes.ano);
+          const partes =
+            extrairPartesData(
+              row[idxData]
+            );
+
+          if (partes) {
+            anos.add(
+              partes.ano
+            );
+          }
         }
-      });
+      );
 
       const ordenados =
-        Array.from(anos)
-          .sort((a, b) => b - a);
+        Array.from(
+          anos
+        )
+        .sort(
+          (a, b) =>
+            b - a
+        );
 
       const anterior =
         selectAno.value;
 
-      selectAno.innerHTML = '';
+      selectAno.innerHTML =
+        '';
 
-      ordenados.forEach(ano => {
-        const option =
-          document.createElement('option');
+      ordenados.forEach(
+        ano => {
 
-        option.value = String(ano);
-        option.textContent = String(ano);
+          const option =
+            document.createElement(
+              'option'
+            );
 
-        selectAno.appendChild(option);
-      });
+          option.value =
+            String(ano);
+
+          option.textContent =
+            String(ano);
+
+          selectAno.appendChild(
+            option
+          );
+        }
+      );
 
       if (
         anterior &&
-        ordenados.includes(Number(anterior))
+        ordenados.includes(
+          Number(anterior)
+        )
       ) {
-        selectAno.value = anterior;
-      } else if (ordenados.length) {
+
         selectAno.value =
-          String(ordenados[0]);
+          anterior;
+
+      } else if (
+        ordenados.length
+      ) {
+
+        selectAno.value =
+          String(
+            ordenados[0]
+          );
       }
 
       renderDashboard();
 
     } catch (erro) {
 
-      console.error(erro);
+      console.error(
+        erro
+      );
 
-      container.className = 'loading';
+      container.className =
+        'loading';
+
       container.textContent =
         'Erro: ' +
         (
-          erro && erro.message
+          erro &&
+          erro.message
             ? erro.message
             : String(erro)
         );
@@ -3756,17 +3889,29 @@
     }
 
     const container =
-      document.getElementById('dashboardTabela');
+      document.getElementById(
+        'dashboardTabela'
+      );
 
     const anoSelecionado =
       Number(
-        document.getElementById('dashboardAno').value || 0
+        document
+          .getElementById(
+            'dashboardAno'
+          )
+          .value || 0
       );
 
     const idxData =
       localizarIndiceCabecalho(
         dashboardDados.headers,
         'Data da reserva'
+      );
+
+    const idxStatus =
+      localizarIndiceCabecalho(
+        dashboardDados.headers,
+        'Status Conciliação'
       );
 
     const idxSituacao =
@@ -3776,13 +3921,25 @@
       );
 
     const meses = [
-      'JAN','FEV','MAR','ABR','MAI','JUN',
-      'JUL','AGO','SET','OUT','NOV','DEZ'
+      'JAN',
+      'FEV',
+      'MAR',
+      'ABR',
+      'MAI',
+      'JUN',
+      'JUL',
+      'AGO',
+      'SET',
+      'OUT',
+      'NOV',
+      'DEZ'
     ];
 
     const totais =
       Array.from(
-        { length: 12 },
+        {
+          length: 12
+        },
         () => ({
           total: 0,
           conciliado: 0,
@@ -3793,7 +3950,7 @@
       );
 
     dashboardDados.rows.forEach(
-      (row, index) => {
+      row => {
 
         const partes =
           extrairPartesData(
@@ -3806,48 +3963,66 @@
 
         if (
           anoSelecionado &&
-          partes.ano !== anoSelecionado
+          partes.ano !==
+          anoSelecionado
         ) {
           return;
         }
 
         const item =
-          totais[partes.mes - 1];
+          totais[
+            partes.mes - 1
+          ];
 
         item.total++;
 
         const situacao =
           idxSituacao !== -1
             ? normalizarTextoDashboard(
-                row[idxSituacao]
+                row[
+                  idxSituacao
+                ]
               )
             : '';
 
-        const meta =
-          dashboardDados.meta &&
-          dashboardDados.meta[index]
-            ? dashboardDados.meta[index]
-            : null;
-
         const status =
-          meta
-            ? meta.status
+          idxStatus !== -1
+            ? normalizarTextoDashboard(
+                row[
+                  idxStatus
+                ]
+              )
             : '';
 
         if (
           situacao ===
-          normalizarTextoDashboard('Cancelado')
+          normalizarTextoDashboard(
+            'Cancelado'
+          )
         ) {
+
           item.cancelado++;
+
         } else if (
-          status === 'Conciliado'
+          status ===
+          normalizarTextoDashboard(
+            'Conciliado'
+          )
         ) {
+
           item.conciliado++;
+
         } else if (
-          status === 'Seleção necessária'
+          status ===
+          normalizarTextoDashboard(
+            'Seleção necessária'
+          )
         ) {
+
           item.selecao++;
+
         } else {
+
           item.naoEncontrado++;
         }
       }
@@ -3855,7 +4030,8 @@
 
     let tabela =
       '<table class="dashboard-table">' +
-      '<thead><tr>' +
+      '<thead>' +
+      '<tr>' +
       '<th>Mês</th>' +
       '<th>Total</th>' +
       '<th>Conciliados</th>' +
@@ -3863,7 +4039,9 @@
       '<th>Não encontrados</th>' +
       '<th>Cancelados</th>' +
       '<th>% Conciliado</th>' +
-      '</tr></thead><tbody>';
+      '</tr>' +
+      '</thead>' +
+      '<tbody>';
 
     totais.forEach(
       (item, index) => {
@@ -3882,30 +4060,70 @@
 
         tabela +=
           '<tr>' +
-          '<td>' + meses[index] + '</td>' +
-          '<td>' + item.total + '</td>' +
-          '<td>' + item.conciliado + '</td>' +
-          '<td>' + item.selecao + '</td>' +
-          '<td>' + item.naoEncontrado + '</td>' +
-          '<td>' + item.cancelado + '</td>' +
+
           '<td>' +
-          percentual.toLocaleString(
-            'pt-BR',
-            {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            }
+          escapeHtml(
+            meses[index]
           ) +
-          '%</td>' +
+          '</td>' +
+
+          '<td>' +
+          escapeHtml(
+            item.total
+          ) +
+          '</td>' +
+
+          '<td>' +
+          escapeHtml(
+            item.conciliado
+          ) +
+          '</td>' +
+
+          '<td>' +
+          escapeHtml(
+            item.selecao
+          ) +
+          '</td>' +
+
+          '<td>' +
+          escapeHtml(
+            item.naoEncontrado
+          ) +
+          '</td>' +
+
+          '<td>' +
+          escapeHtml(
+            item.cancelado
+          ) +
+          '</td>' +
+
+          '<td>' +
+          escapeHtml(
+            percentual
+              .toLocaleString(
+                'pt-BR',
+                {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                }
+              ) +
+            '%'
+          ) +
+          '</td>' +
+
           '</tr>';
       }
     );
 
     tabela +=
-      '</tbody></table>';
+      '</tbody>' +
+      '</table>';
 
-    container.className = '';
-    container.innerHTML = tabela;
+    container.className =
+      '';
+
+    container.innerHTML =
+      tabela;
   }
 
 
