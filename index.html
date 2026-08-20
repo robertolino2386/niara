@@ -983,7 +983,7 @@
       <h1>Transações</h1>
 
       <p class="subtitle">
-        Consulte, edite, exclua e concilie os pedidos com a Base SQL na mesma tela.
+        Consulte as transações e confira a conciliação com a Base SQL na mesma tela.
       </p>
 
       <div class="toolbar">
@@ -993,13 +993,13 @@
           class="search"
           type="search"
           placeholder="Buscar por ID, localizador, hotel, cidade, situação..."
-          onkeydown="if(event.key==='Enter') carregarTransacoes();">
+          onkeydown="if(event.key==='Enter') aplicarFiltroTransacoes();">
 
         <select
           id="filtroStatusTransacoes"
           class="search"
           style="flex:0 0 220px"
-          onchange="carregarTransacoes()">
+          onchange="aplicarFiltroTransacoes()">
           <option value="">Todos os status</option>
           <option value="Conciliado">Conciliados</option>
           <option value="Seleção necessária" selected>Seleção necessária</option>
@@ -1009,7 +1009,7 @@
 
         <button
           class="primary"
-          onclick="carregarTransacoes()">
+          onclick="carregarTransacoes(true)">
           Buscar / Atualizar
         </button>
 
@@ -1164,6 +1164,15 @@
    ****************************************************/
 
   function trocarPagina(nome) {
+
+    try {
+      sessionStorage.setItem(
+        'niaraTelaAtiva',
+        nome
+      );
+    } catch (erro) {
+      // Navegação continua normalmente mesmo sem storage.
+    }
 
     document
       .querySelectorAll('.page')
@@ -1551,9 +1560,6 @@
     ];
 
     const camposMoeda = [
-      'Hotel Net (sem taxas)',
-      'Impostos e Taxas',
-      'Markup',
       'Comissão a receber'
     ];
 
@@ -2047,10 +2053,74 @@
   }
 
 
-  async function carregarTransacoes() {
+  function aplicarFiltroTransacoes() {
 
     paginaAtualTransacoes = 1;
     detalhesSqlAbertos = {};
+
+    try {
+      sessionStorage.setItem(
+        'niaraPaginaTransacoes',
+        '1'
+      );
+      sessionStorage.setItem(
+        'niaraBuscaTransacoes',
+        document.getElementById('busca').value || ''
+      );
+      sessionStorage.setItem(
+        'niaraStatusTransacoes',
+        document.getElementById('filtroStatusTransacoes').value || ''
+      );
+    } catch (erro) {
+      // Storage é opcional.
+    }
+
+    carregarTransacoes(false);
+  }
+
+
+  async function carregarTransacoes(
+    preservarPagina = true
+  ) {
+
+    if (!preservarPagina) {
+      paginaAtualTransacoes = 1;
+    } else {
+      try {
+        const paginaSalva =
+          Number(
+            sessionStorage.getItem(
+              'niaraPaginaTransacoes'
+            ) || 0
+          );
+
+        if (paginaSalva > 0) {
+          paginaAtualTransacoes =
+            paginaSalva;
+        }
+      } catch (erro) {
+        // Usa a página atual em memória.
+      }
+    }
+
+    detalhesSqlAbertos = {};
+
+    try {
+      sessionStorage.setItem(
+        'niaraPaginaTransacoes',
+        String(paginaAtualTransacoes)
+      );
+      sessionStorage.setItem(
+        'niaraBuscaTransacoes',
+        document.getElementById('busca').value || ''
+      );
+      sessionStorage.setItem(
+        'niaraStatusTransacoes',
+        document.getElementById('filtroStatusTransacoes').value || ''
+      );
+    } catch (erro) {
+      // Storage é opcional.
+    }
 
     const tabela =
       document.getElementById('tabela');
@@ -2398,6 +2468,15 @@
         totalPaginas;
     }
 
+    try {
+      sessionStorage.setItem(
+        'niaraPaginaTransacoes',
+        String(paginaAtualTransacoes)
+      );
+    } catch (erro) {
+      // Storage é opcional.
+    }
+
     const inicio =
       (
         paginaAtualTransacoes -
@@ -2416,7 +2495,10 @@
       '<table>' +
       '<thead>' +
       '<tr>' +
-      '<th>Ações</th>' +
+      '<th>Detalhe</th>' +
+      '<th>Tarifa</th>' +
+      '<th>Taxa</th>' +
+      '<th>Markup</th>' +
       '<th>Status Conciliação</th>' +
       '<th>Ocorrências SQL</th>';
 
@@ -2474,21 +2556,87 @@
         ) +
         '">';
 
+      const idxHotelNet =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Hotel Net (sem taxas)'
+        );
+
+      const idxTaxa =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Impostos e Taxas'
+        );
+
+      const idxMarkup =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Markup'
+        );
+
+      let idxDiarias =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Diaria'
+        );
+
+      if (idxDiarias === -1) {
+        idxDiarias =
+          localizarIndiceCabecalho(
+            data.headers,
+            'Diária'
+          );
+      }
+
+      if (idxDiarias === -1) {
+        idxDiarias =
+          localizarIndiceCabecalho(
+            data.headers,
+            'Diarias'
+          );
+      }
+
+      if (idxDiarias === -1) {
+        idxDiarias =
+          localizarIndiceCabecalho(
+            data.headers,
+            'Diárias'
+          );
+      }
+
+      const hotelNet =
+        idxHotelNet !== -1
+          ? numeroComparacaoBR(
+              row[idxHotelNet]
+            )
+          : null;
+
+      const quantidadeDiarias =
+        idxDiarias !== -1
+          ? numeroComparacaoBR(
+              row[idxDiarias]
+            )
+          : null;
+
+      const tarifaDiaria =
+        hotelNet !== null &&
+        quantidadeDiarias !== null &&
+        quantidadeDiarias > 0
+          ? hotelNet / quantidadeDiarias
+          : null;
+
+      const taxaResumo =
+        idxTaxa !== -1
+          ? row[idxTaxa]
+          : '';
+
+      const markupResumo =
+        idxMarkup !== -1
+          ? row[idxMarkup]
+          : '';
+
       html +=
-        '<td>' +
-        '<div class="acoes-linha">' +
-
-        '<button class="acao-btn acao-editar" type="button" title="Editar" onclick="editarTransacao(' +
-        rowIndex +
-        ')">✎</button>' +
-
-        '<button class="acao-btn acao-excluir" type="button" title="Excluir" onclick="excluirTransacao(' +
-        rowIndex +
-        ')">✕</button>' +
-
-        '<button class="acao-btn acao-salvar" type="button" title="Salvar / Editar" onclick="salvarTransacao(' +
-        rowIndex +
-        ')">✓</button>';
+        '<td>';
 
       if (
         Number(
@@ -2496,48 +2644,52 @@
         ) > 0
       ) {
 
-        let label =
-          'Conciliar';
-
-        if (
-          meta.status ===
-          'Seleção necessária'
-        ) {
-          label =
-            Number(meta.quantidadeSql || 0) > 1
-              ? 'Selecionar'
-              : 'Validar';
-        }
-
-        if (
-          meta.status ===
-          'Conciliado' ||
-          meta.status ===
-          'Cancelado'
-        ) {
-          label =
-            expandido
-              ? 'Ocultar SQL'
-              : 'Ver SQL';
-        } else if (
+        const label =
           expandido
-        ) {
-          label =
-            'Ocultar';
-        }
+            ? 'Ocultar SQL'
+            : 'Ver SQL';
 
         html +=
           '<button class="btn-small btn-blue" type="button" onclick="alternarDetalheSql(' +
           rowIndex +
           ')">' +
-          escapeHtml(
-            label
-          ) +
+          escapeHtml(label) +
           '</button>';
+      } else {
+        html +=
+          '<span class="badge">Sem SQL</span>';
       }
 
       html +=
-        '</div>' +
+        '</td>';
+
+      html +=
+        '<td>' +
+        escapeHtml(
+          tarifaDiaria === null
+            ? '—'
+            : formatarMoedaBR(
+                tarifaDiaria
+              )
+        ) +
+        '</td>';
+
+      html +=
+        '<td>' +
+        escapeHtml(
+          formatarMoedaBR(
+            taxaResumo
+          )
+        ) +
+        '</td>';
+
+      html +=
+        '<td>' +
+        escapeHtml(
+          formatarMoedaBR(
+            markupResumo
+          )
+        ) +
         '</td>';
 
       html +=
@@ -2616,7 +2768,7 @@
           '<td colspan="' +
           (
             colunasEncontradas.length +
-            3
+            6
           ) +
           '">' +
           '<div id="sql-detail-' +
@@ -2801,6 +2953,15 @@
 
     paginaAtualTransacoes =
       pagina;
+
+    try {
+      sessionStorage.setItem(
+        'niaraPaginaTransacoes',
+        String(paginaAtualTransacoes)
+      );
+    } catch (erro) {
+      // Storage é opcional.
+    }
 
     detalhesSqlAbertos = {};
 
@@ -3996,9 +4157,17 @@
 
         if (
           situacao ===
-          normalizarTextoDashboard(
-            'Cancelado'
-          )
+            normalizarTextoDashboard(
+              'Cancelado'
+            ) ||
+          situacao ===
+            normalizarTextoDashboard(
+              'Rejeitado'
+            ) ||
+          status ===
+            normalizarTextoDashboard(
+              'Cancelado'
+            )
         ) {
 
           item.cancelado++;
@@ -4126,6 +4295,69 @@
       tabela;
   }
 
+
+
+
+  /****************************************************
+   * RESTAURA A TELA E A PAGINA APOS F5 / ATUALIZAR
+   ****************************************************/
+  window.addEventListener(
+    'DOMContentLoaded',
+    () => {
+
+      try {
+        const buscaSalva =
+          sessionStorage.getItem(
+            'niaraBuscaTransacoes'
+          );
+
+        const statusSalvo =
+          sessionStorage.getItem(
+            'niaraStatusTransacoes'
+          );
+
+        const paginaSalva =
+          Number(
+            sessionStorage.getItem(
+              'niaraPaginaTransacoes'
+            ) || 0
+          );
+
+        if (buscaSalva !== null) {
+          document.getElementById('busca').value =
+            buscaSalva;
+        }
+
+        if (statusSalvo !== null) {
+          document.getElementById(
+            'filtroStatusTransacoes'
+          ).value = statusSalvo;
+        }
+
+        if (paginaSalva > 0) {
+          paginaAtualTransacoes =
+            paginaSalva;
+        }
+
+        const telaSalva =
+          sessionStorage.getItem(
+            'niaraTelaAtiva'
+          );
+
+        if (
+          telaSalva &&
+          document.getElementById(
+            'page-' + telaSalva
+          )
+        ) {
+          trocarPagina(telaSalva);
+        }
+
+      } catch (erro) {
+        // Se o navegador bloquear storage, mantém o comportamento padrão.
+      }
+    }
+  );
 
 </script>
 
