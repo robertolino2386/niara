@@ -4291,15 +4291,15 @@
     totais.forEach(
       (item, index) => {
 
-        const conciliaveis =
-          item.total -
+        const resolvidos =
+          item.conciliado +
           item.cancelado;
 
         const percentual =
-          conciliaveis > 0
+          item.total > 0
             ? (
-                item.conciliado /
-                conciliaveis
+                resolvidos /
+                item.total
               ) * 100
             : 0;
 
