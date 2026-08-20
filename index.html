@@ -3105,7 +3105,7 @@
       ['CHECK-OUT', 'Data de check-out', 'BB_HOTEL_SAIDA', 'data'],
       ['TARIFA', 'Hotel Net (sem taxas)', 'TARIFA', 'tarifa'],
       ['TAXA + EXTRAS', 'Impostos e Taxas', 'TAXA', 'taxaExtras'],
-      ['MARKUP', 'Markup', 'MARKUP', 'moeda']
+      ['MARKUP', 'Markup', 'MARKUP', 'markup']
     ];
 
     let html =
@@ -3215,7 +3215,8 @@
 
             if (
               tipo === 'moeda' ||
-              tipo === 'tarifa'
+              tipo === 'tarifa' ||
+              tipo === 'markup'
             ) {
               valorSql =
                 formatarMoedaBR(
@@ -3411,6 +3412,21 @@
         b !== null &&
         Math.abs(
           a - b
+        ) < 0.01
+      );
+    }
+
+    if (
+      tipo === 'markup'
+    ) {
+      const a = numeroComparacaoBR(valorA);
+      const b = numeroComparacaoBR(valorB);
+
+      return (
+        a !== null &&
+        b !== null &&
+        Math.abs(
+          Math.abs(a) - Math.abs(b)
         ) < 0.01
       );
     }
