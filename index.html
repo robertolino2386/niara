@@ -2574,35 +2574,17 @@
           'Markup'
         );
 
-      let idxDiarias =
+      const idxCheckin =
         localizarIndiceCabecalho(
           data.headers,
-          'Diaria'
+          'Data de check-in'
         );
 
-      if (idxDiarias === -1) {
-        idxDiarias =
-          localizarIndiceCabecalho(
-            data.headers,
-            'Diária'
-          );
-      }
-
-      if (idxDiarias === -1) {
-        idxDiarias =
-          localizarIndiceCabecalho(
-            data.headers,
-            'Diarias'
-          );
-      }
-
-      if (idxDiarias === -1) {
-        idxDiarias =
-          localizarIndiceCabecalho(
-            data.headers,
-            'Diárias'
-          );
-      }
+      const idxCheckout =
+        localizarIndiceCabecalho(
+          data.headers,
+          'Data de check-out'
+        );
 
       const hotelNet =
         idxHotelNet !== -1
@@ -2612,9 +2594,11 @@
           : null;
 
       const quantidadeDiarias =
-        idxDiarias !== -1
-          ? numeroComparacaoBR(
-              row[idxDiarias]
+        idxCheckin !== -1 &&
+        idxCheckout !== -1
+          ? calcularQuantidadeDiarias(
+              row[idxCheckin],
+              row[idxCheckout]
             )
           : null;
 
@@ -3764,6 +3748,82 @@
       m[2] +
       '-' +
       m[1]
+    );
+  }
+
+
+  function calcularQuantidadeDiarias(
+    checkin,
+    checkout
+  ) {
+
+    const inicio =
+      converterDataParaUTC(
+        checkin
+      );
+
+    const fim =
+      converterDataParaUTC(
+        checkout
+      );
+
+    if (
+      inicio === null ||
+      fim === null
+    ) {
+      return null;
+    }
+
+    const diferenca =
+      Math.round(
+        (
+          fim - inicio
+        ) /
+        86400000
+      );
+
+    return diferenca > 0
+      ? diferenca
+      : null;
+  }
+
+
+  function converterDataParaUTC(valor) {
+
+    if (
+      valor == null ||
+      String(valor).trim() === ''
+    ) {
+      return null;
+    }
+
+    const texto =
+      formatarDataBR(
+        valor
+      );
+
+    const match =
+      String(texto).match(
+        /^(\d{2})\/(\d{2})\/(\d{4})$/
+      );
+
+    if (!match) {
+      return null;
+    }
+
+    const dia =
+      Number(match[1]);
+
+    const mes =
+      Number(match[2]);
+
+    const ano =
+      Number(match[3]);
+
+    return Date.UTC(
+      ano,
+      mes - 1,
+      dia
     );
   }
 
