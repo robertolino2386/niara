@@ -509,6 +509,122 @@
       text-align: right;
     }
 
+    .dashboard-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    .dashboard-table thead th {
+      background: #111827;
+      color: #ffffff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      border-bottom: 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .dashboard-table tbody tr {
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+
+    .dashboard-table tbody tr:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 12px rgba(0,0,0,.06);
+    }
+
+    .dashboard-row-meta-ok td {
+      background: #ecfdf5;
+    }
+
+    .dashboard-row-meta-ok td:first-child {
+      border-left: 5px solid #16a34a;
+      font-weight: 700;
+      color: #166534;
+    }
+
+    .dashboard-row-meta-alerta td {
+      background: #fff7ed;
+    }
+
+    .dashboard-row-meta-alerta td:first-child {
+      border-left: 5px solid #f97316;
+      font-weight: 700;
+      color: #9a3412;
+    }
+
+    .dashboard-row-sem-dados td {
+      background: #f9fafb;
+      color: #9ca3af;
+    }
+
+    .dashboard-row-sem-dados td:first-child {
+      border-left: 5px solid #d1d5db;
+      font-weight: 700;
+    }
+
+    .percentual-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .percentual-ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .percentual-alerta {
+      background: #ffedd5;
+      color: #c2410c;
+    }
+
+    .percentual-sem-dados {
+      background: #e5e7eb;
+      color: #6b7280;
+    }
+
+    .meta-dashboard-info {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #f8fafc;
+      font-size: 13px;
+    }
+
+    .meta-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+
+    .meta-chip-ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .meta-chip-alerta {
+      background: #ffedd5;
+      color: #c2410c;
+    }
+
     .acoes-linha {
       display: flex;
       align-items: center;
@@ -1131,6 +1247,12 @@
             Atualizar
           </button>
 
+        </div>
+
+        <div class="meta-dashboard-info">
+          <strong>Meta mensal: 95% conciliado</strong>
+          <span class="meta-chip meta-chip-ok">● Meta atingida ≥ 95%</span>
+          <span class="meta-chip meta-chip-alerta">● Abaixo da meta &lt; 95%</span>
         </div>
 
         <div class="table-wrap" style="max-height: none;">
@@ -4303,8 +4425,46 @@
               ) * 100
             : 0;
 
+        const temDados =
+          item.total > 0;
+
+        const atingiuMeta =
+          temDados &&
+          percentual >= 95;
+
+        const classeLinha =
+          !temDados
+            ? 'dashboard-row-sem-dados'
+            : (
+                atingiuMeta
+                  ? 'dashboard-row-meta-ok'
+                  : 'dashboard-row-meta-alerta'
+              );
+
+        const classePercentual =
+          !temDados
+            ? 'percentual-sem-dados'
+            : (
+                atingiuMeta
+                  ? 'percentual-ok'
+                  : 'percentual-alerta'
+              );
+
+        const percentualFormatado =
+          percentual
+            .toLocaleString(
+              'pt-BR',
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }
+            ) +
+          '%';
+
         tabela +=
-          '<tr>' +
+          '<tr class="' +
+          classeLinha +
+          '">' +
 
           '<td>' +
           escapeHtml(
@@ -4312,11 +4472,11 @@
           ) +
           '</td>' +
 
-          '<td>' +
+          '<td><b>' +
           escapeHtml(
             item.total
           ) +
-          '</td>' +
+          '</b></td>' +
 
           '<td>' +
           escapeHtml(
@@ -4343,17 +4503,13 @@
           '</td>' +
 
           '<td>' +
+          '<span class="percentual-box ' +
+          classePercentual +
+          '">' +
           escapeHtml(
-            percentual
-              .toLocaleString(
-                'pt-BR',
-                {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                }
-              ) +
-            '%'
+            percentualFormatado
           ) +
+          '</span>' +
           '</td>' +
 
           '</tr>';
