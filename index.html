@@ -1235,7 +1235,7 @@
             <select
               id="dashboardAno"
               class="filtro-select"
-              onchange="renderDashboard()">
+              onchange="carregarDashboard()">
               <option value="">Carregando...</option>
             </select>
           </div>
@@ -1279,6 +1279,33 @@
 
   const API_URL =
     'https://script.google.com/macros/s/AKfycbwyURy8TwiJ2biJpVaj-rB_vOpBPBihN1Gqg73mrlWz2t_uonsQirhC0cmbj744VM8c/exec';
+
+
+  async function requisicaoJson(url, opcoes = {}) {
+    const sep = url.includes('?') ? '&' : '?';
+    const urlFinal = url + sep + '_ts=' + Date.now();
+
+    let response;
+    try {
+      response = await fetch(urlFinal, { cache:'no-store', redirect:'follow', ...opcoes });
+    } catch (erro) {
+      throw new Error('Não foi possível conectar ao Apps Script. Verifique a implantação do Web App.');
+    }
+
+    const texto = (await response.text()).replace(/^\uFEFF/, '').trim();
+    if (!texto) throw new Error('O Apps Script respondeu vazio. Publique uma nova versão da implantação.');
+
+    try {
+      return JSON.parse(texto);
+    } catch (erro) {
+      console.error('Resposta não JSON:', texto);
+      const htmlResp = /^<!doctype html/i.test(texto) || /^<html/i.test(texto) || texto.includes('<body');
+      if (htmlResp) {
+        throw new Error('O Apps Script retornou HTML em vez de JSON. Publique uma nova versão do Web App e confirme que o acesso está liberado.');
+      }
+      throw new Error('Resposta inválida do Apps Script: ' + texto.slice(0, 160));
+    }
+  }
 
 
   /****************************************************
@@ -2269,35 +2296,17 @@
         '&termo=' +
         encodeURIComponent(termo) +
         '&status=' +
-        encodeURIComponent(status);
+        encodeURIComponent(status) +
+        '&pagina=' +
+        encodeURIComponent(paginaAtualTransacoes) +
+        '&limite=' +
+        encodeURIComponent(ITENS_POR_PAGINA);
 
-      const response =
-        await fetch(
+      const data =
+        await requisicaoJson(
           url,
-          {
-            method: 'GET',
-            redirect: 'follow'
-          }
+          { method: 'GET' }
         );
-
-      const texto =
-        await response.text();
-
-      let data;
-
-      try {
-        data = JSON.parse(texto);
-      } catch (erro) {
-
-        console.error(
-          'Resposta recebida:',
-          texto
-        );
-
-        throw new Error(
-          'O Apps Script retornou uma resposta inválida.'
-        );
-      }
 
       if (!data.ok) {
 
@@ -2573,45 +2582,16 @@
     colunasListagemAtual =
       colunasEncontradas;
 
-    const totalPaginas =
-      Math.max(
-        1,
-        Math.ceil(
-          data.rows.length /
-          ITENS_POR_PAGINA
-        )
-      );
-
-    if (
-      paginaAtualTransacoes >
-      totalPaginas
-    ) {
-      paginaAtualTransacoes =
-        totalPaginas;
-    }
+    const totalPaginas = Number(data.totalPaginas || 1);
+    paginaAtualTransacoes = Number(data.pagina || paginaAtualTransacoes || 1);
 
     try {
-      sessionStorage.setItem(
-        'niaraPaginaTransacoes',
-        String(paginaAtualTransacoes)
-      );
-    } catch (erro) {
-      // Storage é opcional.
-    }
+      sessionStorage.setItem('niaraPaginaTransacoes', String(paginaAtualTransacoes));
+    } catch (erro) {}
 
-    const inicio =
-      (
-        paginaAtualTransacoes -
-        1
-      ) *
-      ITENS_POR_PAGINA;
-
-    const fim =
-      Math.min(
-        inicio +
-        ITENS_POR_PAGINA,
-        data.rows.length
-      );
+    const inicio = 0;
+    const fim = data.rows.length;
+    const inicioGlobal = (paginaAtualTransacoes - 1) * ITENS_POR_PAGINA;
 
     let html =
       '<table>' +
@@ -2898,9 +2878,9 @@
 
     renderPaginacaoTransacoes(
       totalPaginas,
-      inicio,
-      fim,
-      data.rows.length
+      inicioGlobal,
+      inicioGlobal + data.rows.length,
+      data.total
     );
 
     for (
@@ -3041,14 +3021,7 @@
       return;
     }
 
-    const totalPaginas =
-      Math.max(
-        1,
-        Math.ceil(
-          dadosListagemAtual.rows.length /
-          ITENS_POR_PAGINA
-        )
-      );
+    const totalPaginas = Number(dadosListagemAtual.totalPaginas || 1);
 
     if (
       pagina < 1 ||
@@ -3071,9 +3044,7 @@
 
     detalhesSqlAbertos = {};
 
-    renderTabela(
-      dadosListagemAtual
-    );
+    carregarTransacoes(true);
   }
 
 
@@ -4077,519 +4048,66 @@
 
 
   async function carregarDashboard() {
-
-    const container =
-      document.getElementById(
-        'dashboardTabela'
-      );
-
-    const selectAno =
-      document.getElementById(
-        'dashboardAno'
-      );
-
-    container.className =
-      'loading';
-
-    container.textContent =
-      'Carregando dashboard...';
+    const container = document.getElementById('dashboardTabela');
+    const selectAno = document.getElementById('dashboardAno');
+    container.className = 'loading';
+    container.textContent = 'Carregando dashboard...';
 
     try {
-
-      /************************************************
-       * Usa a listagem simples.
-       * Não roda novamente toda a conciliação.
-       ************************************************/
-      const response =
-        await fetch(
-          API_URL +
-          '?action=listar&termo=',
-          {
-            method: 'GET',
-            redirect: 'follow'
-          }
-        );
-
-      const texto =
-        await response.text();
-
-      const data =
-        JSON.parse(
-          texto
-        );
-
-      if (!data.ok) {
-
-        throw new Error(
-          data.mensagem ||
-          'Não foi possível carregar o dashboard.'
-        );
-      }
-
-      dashboardDados =
-        data;
-
-      const idxData =
-        localizarIndiceCabecalho(
-          data.headers,
-          'Data da reserva'
-        );
-
-      if (
-        idxData === -1
-      ) {
-
-        throw new Error(
-          'A coluna Data da reserva não foi encontrada.'
-        );
-      }
-
-      const anos =
-        new Set();
-
-      data.rows.forEach(
-        row => {
-
-          const partes =
-            extrairPartesData(
-              row[idxData]
-            );
-
-          if (partes) {
-            anos.add(
-              partes.ano
-            );
-          }
-        }
+      const anoAtual = Number(selectAno.value || 0);
+      const data = await requisicaoJson(
+        API_URL + '?action=dashboard&ano=' + encodeURIComponent(anoAtual || ''),
+        { method:'GET' }
       );
+      if (!data.ok) throw new Error(data.mensagem || 'Não foi possível carregar o dashboard.');
 
-      const ordenados =
-        Array.from(
-          anos
-        )
-        .sort(
-          (a, b) =>
-            b - a
-        );
-
-      const anterior =
-        selectAno.value;
-
-      selectAno.innerHTML =
-        '';
-
-      ordenados.forEach(
-        ano => {
-
-          const option =
-            document.createElement(
-              'option'
-            );
-
-          option.value =
-            String(ano);
-
-          option.textContent =
-            String(ano);
-
-          selectAno.appendChild(
-            option
-          );
-        }
-      );
-
-      if (
-        anterior &&
-        ordenados.includes(
-          Number(anterior)
-        )
-      ) {
-
-        selectAno.value =
-          anterior;
-
-      } else if (
-        ordenados.length
-      ) {
-
-        selectAno.value =
-          String(
-            ordenados[0]
-          );
-      }
-
+      selectAno.innerHTML = '';
+      (data.anos || []).forEach(ano => {
+        const opt = document.createElement('option');
+        opt.value = String(ano);
+        opt.textContent = String(ano);
+        selectAno.appendChild(opt);
+      });
+      if (data.ano) selectAno.value = String(data.ano);
+      dashboardDados = data;
       renderDashboard();
-
     } catch (erro) {
-
-      console.error(
-        erro
-      );
-
-      container.className =
-        'loading';
-
-      container.textContent =
-        'Erro: ' +
-        (
-          erro &&
-          erro.message
-            ? erro.message
-            : String(erro)
-        );
+      console.error(erro);
+      container.className = 'loading';
+      container.textContent = 'Erro: ' + (erro && erro.message ? erro.message : String(erro));
     }
   }
-
 
   function renderDashboard() {
+    if (!dashboardDados) return;
+    const container = document.getElementById('dashboardTabela');
+    const nomes = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    let tabela = '<table class="dashboard-table"><thead><tr>' +
+      '<th>Mês</th><th>Total</th><th>Conciliados</th><th>Seleção necessária</th>' +
+      '<th>Não encontrados</th><th>Cancelados</th><th>% Conciliado</th>' +
+      '</tr></thead><tbody>';
 
-    if (!dashboardDados) {
-      return;
-    }
-
-    const container =
-      document.getElementById(
-        'dashboardTabela'
-      );
-
-    const anoSelecionado =
-      Number(
-        document
-          .getElementById(
-            'dashboardAno'
-          )
-          .value || 0
-      );
-
-    const idxData =
-      localizarIndiceCabecalho(
-        dashboardDados.headers,
-        'Data da reserva'
-      );
-
-    const idxStatus =
-      localizarIndiceCabecalho(
-        dashboardDados.headers,
-        'Status Conciliação'
-      );
-
-    const idxSituacao =
-      localizarIndiceCabecalho(
-        dashboardDados.headers,
-        'Situação'
-      );
-
-    const meses = [
-      'JAN',
-      'FEV',
-      'MAR',
-      'ABR',
-      'MAI',
-      'JUN',
-      'JUL',
-      'AGO',
-      'SET',
-      'OUT',
-      'NOV',
-      'DEZ'
-    ];
-
-    const totais =
-      Array.from(
-        {
-          length: 12
-        },
-        () => ({
-          total: 0,
-          conciliado: 0,
-          selecao: 0,
-          naoEncontrado: 0,
-          cancelado: 0
-        })
-      );
-
-    dashboardDados.rows.forEach(
-      row => {
-
-        const partes =
-          extrairPartesData(
-            row[idxData]
-          );
-
-        if (!partes) {
-          return;
-        }
-
-        if (
-          anoSelecionado &&
-          partes.ano !==
-          anoSelecionado
-        ) {
-          return;
-        }
-
-        const item =
-          totais[
-            partes.mes - 1
-          ];
-
-        item.total++;
-
-        const situacao =
-          idxSituacao !== -1
-            ? normalizarTextoDashboard(
-                row[
-                  idxSituacao
-                ]
-              )
-            : '';
-
-        const status =
-          idxStatus !== -1
-            ? normalizarTextoDashboard(
-                row[
-                  idxStatus
-                ]
-              )
-            : '';
-
-        if (
-          situacao ===
-            normalizarTextoDashboard(
-              'Cancelado'
-            ) ||
-          situacao ===
-            normalizarTextoDashboard(
-              'Rejeitado'
-            ) ||
-          status ===
-            normalizarTextoDashboard(
-              'Cancelado'
-            )
-        ) {
-
-          item.cancelado++;
-
-        } else if (
-          status ===
-          normalizarTextoDashboard(
-            'Conciliado'
-          )
-        ) {
-
-          item.conciliado++;
-
-        } else if (
-          status ===
-          normalizarTextoDashboard(
-            'Seleção necessária'
-          )
-        ) {
-
-          item.selecao++;
-
-        } else {
-
-          item.naoEncontrado++;
-        }
-      }
-    );
-
-    let tabela =
-      '<table class="dashboard-table">' +
-      '<thead>' +
-      '<tr>' +
-      '<th>Mês</th>' +
-      '<th>Total</th>' +
-      '<th>Conciliados</th>' +
-      '<th>Seleção necessária</th>' +
-      '<th>Não encontrados</th>' +
-      '<th>Cancelados</th>' +
-      '<th>% Conciliado</th>' +
-      '</tr>' +
-      '</thead>' +
-      '<tbody>';
-
-    totais.forEach(
-      (item, index) => {
-
-        const resolvidos =
-          item.conciliado +
-          item.cancelado;
-
-        const percentual =
-          item.total > 0
-            ? (
-                resolvidos /
-                item.total
-              ) * 100
-            : 0;
-
-        const temDados =
-          item.total > 0;
-
-        const atingiuMeta =
-          temDados &&
-          percentual >= 95;
-
-        const classeLinha =
-          !temDados
-            ? 'dashboard-row-sem-dados'
-            : (
-                atingiuMeta
-                  ? 'dashboard-row-meta-ok'
-                  : 'dashboard-row-meta-alerta'
-              );
-
-        const classePercentual =
-          !temDados
-            ? 'percentual-sem-dados'
-            : (
-                atingiuMeta
-                  ? 'percentual-ok'
-                  : 'percentual-alerta'
-              );
-
-        const percentualFormatado =
-          percentual
-            .toLocaleString(
-              'pt-BR',
-              {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              }
-            ) +
-          '%';
-
-        tabela +=
-          '<tr class="' +
-          classeLinha +
-          '">' +
-
-          '<td>' +
-          escapeHtml(
-            meses[index]
-          ) +
-          '</td>' +
-
-          '<td><b>' +
-          escapeHtml(
-            item.total
-          ) +
-          '</b></td>' +
-
-          '<td>' +
-          escapeHtml(
-            item.conciliado
-          ) +
-          '</td>' +
-
-          '<td>' +
-          escapeHtml(
-            item.selecao
-          ) +
-          '</td>' +
-
-          '<td>' +
-          escapeHtml(
-            item.naoEncontrado
-          ) +
-          '</td>' +
-
-          '<td>' +
-          escapeHtml(
-            item.cancelado
-          ) +
-          '</td>' +
-
-          '<td>' +
-          '<span class="percentual-box ' +
-          classePercentual +
-          '">' +
-          escapeHtml(
-            percentualFormatado
-          ) +
-          '</span>' +
-          '</td>' +
-
-          '</tr>';
-      }
-    );
-
-    tabela +=
-      '</tbody>' +
-      '</table>';
-
-    container.className =
-      '';
-
-    container.innerHTML =
-      tabela;
+    (dashboardDados.meses || []).forEach((item,index) => {
+      const percentual = Number(item.percentual || 0);
+      const temDados = Number(item.total || 0) > 0;
+      const meta = temDados && percentual >= 95;
+      const linha = !temDados ? 'dashboard-row-sem-dados' : (meta ? 'dashboard-row-meta-ok' : 'dashboard-row-meta-alerta');
+      const box = !temDados ? 'percentual-sem-dados' : (meta ? 'percentual-ok' : 'percentual-alerta');
+      const pct = percentual.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
+      tabela += '<tr class="'+linha+'">' +
+        '<td>'+escapeHtml(nomes[index])+'</td>' +
+        '<td><b>'+escapeHtml(item.total)+'</b></td>' +
+        '<td>'+escapeHtml(item.conciliado)+'</td>' +
+        '<td>'+escapeHtml(item.selecao)+'</td>' +
+        '<td>'+escapeHtml(item.naoEncontrado)+'</td>' +
+        '<td>'+escapeHtml(item.cancelado)+'</td>' +
+        '<td><span class="percentual-box '+box+'">'+escapeHtml(pct)+'</span></td>' +
+        '</tr>';
+    });
+    tabela += '</tbody></table>';
+    container.className = '';
+    container.innerHTML = tabela;
   }
-
-
-
-
-  /****************************************************
-   * RESTAURA A TELA E A PAGINA APOS F5 / ATUALIZAR
-   ****************************************************/
-  window.addEventListener(
-    'DOMContentLoaded',
-    () => {
-
-      try {
-        const buscaSalva =
-          sessionStorage.getItem(
-            'niaraBuscaTransacoes'
-          );
-
-        const statusSalvo =
-          sessionStorage.getItem(
-            'niaraStatusTransacoes'
-          );
-
-        const paginaSalva =
-          Number(
-            sessionStorage.getItem(
-              'niaraPaginaTransacoes'
-            ) || 0
-          );
-
-        if (buscaSalva !== null) {
-          document.getElementById('busca').value =
-            buscaSalva;
-        }
-
-        if (statusSalvo !== null) {
-          document.getElementById(
-            'filtroStatusTransacoes'
-          ).value = statusSalvo;
-        }
-
-        if (paginaSalva > 0) {
-          paginaAtualTransacoes =
-            paginaSalva;
-        }
-
-        const telaSalva =
-          sessionStorage.getItem(
-            'niaraTelaAtiva'
-          );
-
-        if (
-          telaSalva &&
-          document.getElementById(
-            'page-' + telaSalva
-          )
-        ) {
-          trocarPagina(telaSalva);
-        }
-
-      } catch (erro) {
-        // Se o navegador bloquear storage, mantém o comportamento padrão.
-      }
-    }
-  );
 
 </script>
 
